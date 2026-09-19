@@ -1,11 +1,14 @@
-// src/index.js
 require('dotenv').config();
 const express = require('express');
 const mongoose = require('mongoose');
+const path = require('path');
 
 const app = express();
 
 app.use(express.json()); 
+
+// Permitir acceso público a la carpeta uploads para ver/descargar los PDFs
+app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
 const documentoRoutes = require('./routes/documentos.routes');
 app.use('/api/documentos', documentoRoutes);

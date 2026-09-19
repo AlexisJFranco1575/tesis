@@ -1,0 +1,33 @@
+services:
+  api:
+    build: .
+    container_name: ep_uleam_api
+    ports:
+      - "3000:3000"
+    environment:
+      - PORT=3000
+      - MONGODB_URI=mongodb://mongo:27017/epuleam_docs
+    volumes:
+      - ./src:/usr/src/app/src
+      - ./uploads:/usr/src/app/uploads
+    depends_on:
+      - mongo
+    networks:
+      - ep_uleam_network
+
+  mongo:
+    image: mongo:latest
+    container_name: ep_uleam_db
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    networks:
+      - ep_uleam_network
+
+networks:
+  ep_uleam_network:
+    driver: bridge
+
+volumes:
+  mongo_data:
