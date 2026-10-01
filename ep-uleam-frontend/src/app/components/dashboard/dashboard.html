@@ -1,0 +1,49 @@
+<div class="sys-container">
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="sidebar-header">
+      <h3>EP-ULEAM</h3>
+    </div>
+    <nav class="nav-menu">
+      <!-- Usamos routerLink y routerLinkActive para que pinte de rojo la opción seleccionada -->
+      <a routerLink="/dashboard/panel" class="nav-item" routerLinkActive="active">
+        <span class="icon">📊</span> Panel de Control
+      </a>
+      <a routerLink="/dashboard/documentos" class="nav-item" routerLinkActive="active">
+        <span class="icon">📄</span> Documentos
+      </a>
+      <a routerLink="/dashboard/auditoria" class="nav-item" routerLinkActive="active">
+        <span class="icon">🛡️</span> Auditoría SHA-256
+      </a>
+      <a routerLink="/dashboard/usuarios" class="nav-item" routerLinkActive="active">
+        <span class="icon">👥</span> Usuarios
+      </a>
+    </nav>
+    <div class="sidebar-footer">
+      <a href="javascript:void(0)" class="nav-item logout" (click)="cerrarSesion()">
+        <span class="icon">🚪</span> Cerrar Sesión
+      </a>
+    </div>
+  </aside>
+
+  <!-- Main Content -->
+  <main class="main-layout">
+    <header class="top-nav">
+      <div class="search-bar">
+        <input type="text" placeholder="Buscar documento por código o hash...">
+      </div>
+      <div class="user-info" *ngIf="usuarioActual">
+        <div class="text-info">
+          <strong>{{ usuarioActual.rol }} {{ usuarioActual.departamento }}</strong>
+          <span>{{ usuarioActual.nombreCompleto }}</span>
+        </div>
+        <div class="avatar">{{ iniciales }}</div>
+      </div>
+    </header>
+
+    <!-- AQUÍ ESTÁ LA MAGIA. Este router-outlet carga los componentes dinámicamente sin recargar la página -->
+    <div class="content-area">
+      <router-outlet></router-outlet>
+    </div>
+  </main>
+</div>

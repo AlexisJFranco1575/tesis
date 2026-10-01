@@ -1,32 +1,29 @@
-require('dotenv').config();
 const express = require('express');
+const cors = require('cors');
 const mongoose = require('mongoose');
-const path = require('path');
+require('dotenv').config();
+
+// 1. IMPORTA LA RUTA AQUÍ ARRIBA
+const authRoutes = require('./routes/authRoutes');
+// const documentoRoutes = require('./routes/documentoRoutes'); // (Cuando la creemos bien)
 
 const app = express();
 
-app.use(express.json()); 
+// MIDDLEWARES (Esto debe ir antes de las rutas sí o sí)
+app.use(cors());
+app.use(express.json());
 
-// Permitir acceso público a la carpeta uploads para ver/descargar los PDFs
-app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
+// 2. PON EL app.use EXACTAMENTE AQUÍ
+app.use('/api/auth', authRoutes);
 
-const documentoRoutes = require('./routes/documentos.routes');
-app.use('/api/documentos', documentoRoutes);
 
-app.get('/', (req, res) => {
-    res.send('API de Gestión Documental EP-ULEAM funcionando correctamente.');
-});
+// Conexión a MongoDB (Usa la variable de tu .env)
+mongoose.connect(process.env.MONGODB_URI)
+  .then(() => console.log('✅ Base de datos MongoDB conectada exitosamente'))
+  .catch(err => console.error('❌ Error al conectar a MongoDB:', err));
 
+// Levantar el servidor
 const PORT = process.env.PORT || 3000;
-const MONGODB_URI = process.env.MONGODB_URI;
-
-mongoose.connect(MONGODB_URI)
-    .then(() => {
-        console.log('✅ Conectado a MongoDB exitosamente');
-        app.listen(PORT, () => {
-            console.log(`🚀 Servidor backend levantado en http://localhost:${PORT}`);
-        });
-    })
-    .catch((error) => {
-        console.error('❌ Error fatal al conectar a MongoDB:', error);
-    });
+app.listen(PORT, () => {
+    console.log(`🚀 Servidor corriendo en el puerto ${PORT}`);
+});

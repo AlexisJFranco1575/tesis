@@ -1,0 +1,42 @@
+<div class="auth-wrapper">
+  <div class="auth-card">
+    <div class="brand-section">
+      <div class="logo-placeholder">EP-ULEAM</div>
+      <h2>Acceso al Sistema</h2>
+      <p>Gestión Documental con Trazabilidad Hash</p>
+    </div>
+    
+    <form class="auth-form" (ngSubmit)="iniciarSesion()">
+      
+      <!-- Alerta de error (se muestra solo si falla el login) -->
+      <div *ngIf="mensajeError" class="error-alert">
+        {{ mensajeError }}
+      </div>
+
+      <div class="input-group">
+        <label>Correo Electrónico</label>
+        <div class="input-wrapper">
+          <span class="icon">✉</span>
+          <input type="email" name="email" [(ngModel)]="credenciales.email" placeholder="admin@uleam.edu.ec" required>
+        </div>
+      </div>
+      
+      <div class="input-group">
+        <label>Contraseña</label>
+        <div class="input-wrapper">
+          <span class="icon">🔒</span>
+          <input type="password" name="password" [(ngModel)]="credenciales.password" placeholder="••••••••" required>
+        </div>
+      </div>
+      
+      <div class="form-actions">
+        <label class="remember-me">
+          <input type="checkbox"> Recordarme
+        </label>
+        <a href="#" class="forgot-pwd">¿Olvidó su contraseña?</a>
+      </div>
+      
+      <button type="submit" class="btn-login">Iniciar Sesión</button>
+    </form>
+  </div>
+</div>

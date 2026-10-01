@@ -1,0 +1,77 @@
+<div class="module-container">
+  <div class="module-header">
+    <div class="title-section">
+      <h2>Repositorio Institucional</h2>
+      <p>Gestión centralizada de la documentación de la EP-ULEAM</p>
+    </div>
+    <button class="btn-new">+ Cargar Documento</button>
+  </div>
+
+  <div class="filters-bar">
+    <input type="text" class="search-input" placeholder="🔍 Buscar por código, título o autor...">
+    <select class="filter-select">
+      <option>Todos los departamentos</option>
+      <option>Secretaría General</option>
+      <option>CENFOR</option>
+      <option>Financiero</option>
+    </select>
+    <select class="filter-select">
+      <option>Estado: Todos</option>
+      <option>Aprobados</option>
+      <option>En Revisión</option>
+    </select>
+  </div>
+
+  <div class="table-wrapper">
+    <table class="modern-table">
+      <thead>
+        <tr>
+          <th>Código</th>
+          <th>Título del Documento</th>
+          <th>Departamento</th>
+          <th>Fecha / Autor</th>
+          <th>Estado</th>
+          <th>Acciones</th>
+        </tr>
+      </thead>
+      <tbody>
+        <!-- Fila de prueba 1 -->
+        <tr>
+          <td><span class="code-badge">EP-MEM-2026-045</span></td>
+          <td><strong>Aprobación Presupuesto Q4</strong><br><span class="doc-type">Memorando Interno</span></td>
+          <td>Financiero</td>
+          <td>24 Sept 2026<br><span class="author-text">Laura Silva</span></td>
+          <td><span class="status-badge approved">Aprobado</span></td>
+          <td>
+            <button class="btn-icon" title="Ver Documento">👁️</button>
+            <button class="btn-icon" title="Ver Trazabilidad">🔗</button>
+          </td>
+        </tr>
+        <!-- Fila de prueba 2 -->
+        <tr>
+          <td><span class="code-badge">EP-OFI-2026-089</span></td>
+          <td><strong>Contrato Limpieza Instalaciones</strong><br><span class="doc-type">Oficio Externo</span></td>
+          <td>Compras Públicas</td>
+          <td>23 Sept 2026<br><span class="author-text">Carlos Mendoza</span></td>
+          <td><span class="status-badge review">En Revisión</span></td>
+          <td>
+            <button class="btn-icon" title="Ver Documento">👁️</button>
+            <button class="btn-icon" title="Ver Trazabilidad">🔗</button>
+          </td>
+        </tr>
+        <!-- Fila de prueba 3 -->
+        <tr>
+          <td><span class="code-badge">EP-RES-2026-012</span></td>
+          <td><strong>Nombramiento Personal Docente</strong><br><span class="doc-type">Resolución</span></td>
+          <td>Talento Humano</td>
+          <td>20 Sept 2026<br><span class="author-text">Alexis Franco</span></td>
+          <td><span class="status-badge archived">Archivado</span></td>
+          <td>
+            <button class="btn-icon" title="Ver Documento">👁️</button>
+            <button class="btn-icon" title="Ver Trazabilidad">🔗</button>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>

@@ -1,0 +1,34 @@
+.module-container { font-family: 'Inter', sans-serif; max-width: 900px; margin: 0 auto; animation: fadeIn 0.4s ease-in; }
+.audit-top { margin-bottom: 40px; }
+.btn-back { background: transparent; border: none; color: #4a5568; font-weight: 600; font-size: 14px; cursor: pointer; padding: 0; margin-bottom: 15px; }
+.btn-back:hover { color: #1a1a2e; text-decoration: underline; }
+.doc-summary h2 { margin: 10px 0 0; color: #1a1a2e; font-size: 22px; }
+
+.badge-integrity { display: inline-block; padding: 6px 12px; border-radius: 4px; font-size: 12px; font-weight: bold; text-transform: uppercase; }
+.badge-integrity.valid { background-color: #c6f6d5; color: #22543d; border: 1px solid #9ae6b4; }
+
+/* Timeline Styles */
+.timeline-container { position: relative; padding-left: 30px; }
+.timeline-container::before { content: ''; position: absolute; left: 11px; top: 0; bottom: 0; width: 2px; background: #cbd5e0; }
+
+.timeline-node { position: relative; margin-bottom: 40px; }
+.node-marker { position: absolute; left: -30px; top: 5px; width: 24px; height: 24px; border-radius: 50%; background: #fff; border: 4px solid #cbd5e0; z-index: 1; }
+.node-marker.current { border-color: #3182ce; background: #ebf8ff; box-shadow: 0 0 0 4px rgba(49, 130, 206, 0.2); }
+.timeline-node.genesis .node-marker { border-color: #38a169; }
+
+.node-content { background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.02); }
+.node-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; border-bottom: 1px solid #edf2f7; padding-bottom: 10px; }
+.node-header h3 { margin: 0; color: #2d3748; font-size: 16px; }
+.node-header .date { font-size: 12px; color: #718096; font-weight: 500; }
+
+.node-body p { margin: 0 0 10px; font-size: 14px; color: #4a5568; }
+.node-body strong { color: #2d3748; }
+
+/* Hash Panel (El visor oscuro) */
+.hash-panel { background: #1a202c; border-radius: 6px; padding: 15px; margin-top: 15px; display: flex; flex-direction: column; gap: 10px; }
+.hash-row { display: flex; flex-direction: column; gap: 5px; }
+.hash-row.active { padding-top: 10px; border-top: 1px dashed #4a5568; }
+.hash-label { font-size: 11px; color: #a0aec0; text-transform: uppercase; font-weight: bold; letter-spacing: 0.5px; }
+.hash-string { font-family: 'Courier New', monospace; font-size: 13px; color: #fff; word-break: break-all; background: rgba(0,0,0,0.3); padding: 6px 10px; border-radius: 4px; }
+.hash-string.linked { color: #63b3ed; }
+.hash-string.null { color: #fc8181; opacity: 0.7; }

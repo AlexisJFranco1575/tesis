@@ -1,0 +1,130 @@
+.auth-wrapper {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+  font-family: 'Inter', -apple-system, sans-serif;
+  margin: -8px; /* Elimina márgenes por defecto del body si no tienes un reset global */
+}
+
+.auth-card {
+  background: #ffffff;
+  width: 100%;
+  max-width: 420px;
+  border-radius: 12px;
+  box-shadow: 0 20px 40px rgba(0,0,0,0.4);
+  padding: 40px;
+  box-sizing: border-box;
+}
+
+.brand-section {
+  text-align: center;
+  margin-bottom: 35px;
+}
+
+.logo-placeholder {
+  background: #b71c1c; /* Rojo ULEAM */
+  color: white;
+  font-weight: 900;
+  font-size: 24px;
+  padding: 15px;
+  border-radius: 8px;
+  display: inline-block;
+  margin-bottom: 15px;
+  letter-spacing: 1px;
+}
+
+.brand-section h2 {
+  margin: 0 0 5px;
+  color: #1a1a2e;
+  font-size: 22px;
+}
+
+.brand-section p {
+  margin: 0;
+  color: #6c757d;
+  font-size: 13px;
+}
+
+.input-group {
+  margin-bottom: 20px;
+}
+
+.input-group label {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: #2b2b2b;
+  margin-bottom: 8px;
+}
+
+.input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.input-wrapper .icon {
+  position: absolute;
+  left: 14px;
+  color: #adb5bd;
+}
+
+.input-wrapper input {
+  width: 100%;
+  padding: 12px 12px 12px 40px;
+  border: 1px solid #ced4da;
+  border-radius: 6px;
+  font-size: 14px;
+  transition: all 0.3s ease;
+  box-sizing: border-box;
+}
+
+.input-wrapper input:focus {
+  border-color: #b71c1c;
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(183, 28, 28, 0.1);
+}
+
+.form-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 25px;
+  font-size: 13px;
+}
+
+.forgot-pwd {
+  color: #b71c1c;
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.btn-login {
+  width: 100%;
+  background: #b71c1c;
+  color: white;
+  border: none;
+  padding: 14px;
+  border-radius: 6px;
+  font-size: 15px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: background 0.3s ease;
+}
+
+.btn-login:hover {
+  background: #901616;
+}
+
+.error-alert {
+  background-color: #fed7d7;
+  color: #9b2c2c;
+  padding: 10px;
+  border-radius: 6px;
+  margin-bottom: 15px;
+  font-size: 13px;
+  text-align: center;
+  font-weight: 600;
+}

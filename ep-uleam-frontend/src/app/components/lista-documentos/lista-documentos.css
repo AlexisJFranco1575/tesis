@@ -1,0 +1,30 @@
+.module-container { font-family: 'Inter', sans-serif; animation: fadeIn 0.4s ease-in; }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+.module-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; }
+.title-section h2 { margin: 0 0 5px; color: #1a1a2e; font-size: 24px; }
+.title-section p { margin: 0; color: #718096; font-size: 14px; }
+.btn-new { background: #b71c1c; color: white; border: none; padding: 10px 20px; border-radius: 6px; font-weight: 600; cursor: pointer; transition: background 0.3s; }
+.btn-new:hover { background: #901616; }
+
+.filters-bar { display: flex; gap: 15px; margin-bottom: 20px; }
+.search-input { flex: 1; padding: 10px 15px; border: 1px solid #e2e8f0; border-radius: 6px; outline: none; }
+.filter-select { padding: 10px 15px; border: 1px solid #e2e8f0; border-radius: 6px; background: white; outline: none; color: #4a5568; }
+
+.table-wrapper { background: white; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.03); overflow: hidden; border: 1px solid #edf2f7; }
+.modern-table { width: 100%; border-collapse: collapse; }
+.modern-table th, .modern-table td { padding: 16px 20px; text-align: left; border-bottom: 1px solid #edf2f7; }
+.modern-table th { background: #f8fafc; color: #4a5568; font-size: 12px; text-transform: uppercase; font-weight: 700; letter-spacing: 0.5px; }
+.modern-table td { font-size: 14px; color: #2d3748; vertical-align: middle; }
+
+.code-badge { background: #edf2f7; padding: 5px 8px; border-radius: 4px; font-family: monospace; color: #4a5568; font-weight: 600; }
+.doc-type { font-size: 12px; color: #718096; }
+.author-text { font-size: 12px; color: #a0aec0; }
+
+.status-badge { padding: 4px 10px; border-radius: 12px; font-size: 11px; font-weight: 700; text-transform: uppercase; }
+.status-badge.approved { background: #c6f6d5; color: #22543d; }
+.status-badge.review { background: #feebc8; color: #744210; }
+.status-badge.archived { background: #e2e8f0; color: #4a5568; }
+
+.btn-icon { background: none; border: none; cursor: pointer; font-size: 16px; margin-right: 5px; opacity: 0.7; transition: opacity 0.2s; }
+.btn-icon:hover { opacity: 1; transform: scale(1.1); }
