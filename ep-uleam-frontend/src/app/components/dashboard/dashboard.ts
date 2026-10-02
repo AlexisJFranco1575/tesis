@@ -1,43 +1,35 @@
-import { Component, OnInit } from '@angular/core';
-import { CommonModule } from '@angular/common';
-import { Router, RouterModule } from '@angular/router'; // <-- RouterModule ES VITAL AQUÍ
+import { Component, OnInit, inject } from '@angular/core';
+import { Router, RouterModule } from '@angular/router';
+import { AuthService, UsuarioSesion } from '../../services/auth';
 
 @Component({
   selector: 'app-dashboard',
   standalone: true,
-  imports: [CommonModule, RouterModule], // <-- DEBE ESTAR IMPORTADO AQUÍ
+  imports: [RouterModule],
   templateUrl: './dashboard.html',
   styleUrls: ['./dashboard.css']
 })
 export class DashboardComponent implements OnInit {
-  usuarioActual: any = null;
-  iniciales: string = 'U';
+  private auth = inject(AuthService);
+  private router = inject(Router);
 
-  constructor(private router: Router) {}
+  usuarioActual: UsuarioSesion | null = null;
+  iniciales = 'U';
+  esControl = false;
 
-  ngOnInit() {
-    const usuarioString = localStorage.getItem('usuario');
-    
-    if (!usuarioString) {
-      this.router.navigate(['/login']);
-      return;
-    }
+  ngOnInit(): void {
+    this.usuarioActual = this.auth.getUsuario();
+    this.esControl = this.auth.esControl();
 
-    this.usuarioActual = JSON.parse(usuarioString);
-    
-    if (this.usuarioActual && this.usuarioActual.nombreCompleto) {
-      const partesNombre = this.usuarioActual.nombreCompleto.split(' ');
-      if (partesNombre.length >= 2) {
-        this.iniciales = partesNombre[0][0] + partesNombre[1][0];
-      } else {
-        this.iniciales = partesNombre[0][0];
-      }
+    if (this.usuarioActual?.nombreCompleto) {
+      const partes = this.usuarioActual.nombreCompleto.split(' ').filter(Boolean);
+      this.iniciales = (partes[0]?.[0] ?? '') + (partes[1]?.[0] ?? '');
+      this.iniciales = this.iniciales.toUpperCase() || 'U';
     }
   }
 
-  cerrarSesion() {
-    localStorage.removeItem('token');
-    localStorage.removeItem('usuario');
+  cerrarSesion(): void {
+    this.auth.logout();
     this.router.navigate(['/login']);
   }
 }

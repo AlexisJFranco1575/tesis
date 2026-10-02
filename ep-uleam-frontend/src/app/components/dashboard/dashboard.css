@@ -1,45 +1,63 @@
 .sys-container {
   display: flex;
   height: 100vh;
-  background-color: #f4f7f6;
-  font-family: 'Inter', sans-serif;
+  background-color: var(--ep-fondo);
   margin: 0;
 }
+
+/* ===== Menú lateral ===== */
 .sidebar {
   width: 250px;
-  background: #1a1a2e;
+  flex-shrink: 0;
+  background: linear-gradient(180deg, var(--ep-azul-profundo) 0%, var(--ep-azul-principal) 100%);
   color: #fff;
   display: flex;
   flex-direction: column;
 }
+
 .sidebar-header {
-  padding: 20px;
-  background: #b71c1c;
-  text-align: center;
-  border-bottom: 1px solid #901616;
+  padding: 18px 16px;
+  background: #fff;
+  border-bottom: 4px solid var(--ep-cian);
 }
-.sidebar-header h3 { margin: 0; font-weight: 900; letter-spacing: 1px; }
+
+.sidebar-header img {
+  display: block;
+  width: 100%;
+  max-width: 200px;
+  height: auto;
+  margin: 0 auto;
+}
+
 .nav-menu { flex: 1; padding: 20px 0; }
+
 .nav-item {
   display: flex;
   align-items: center;
   padding: 12px 25px;
-  color: #a0aabf;
+  color: rgba(255, 255, 255, 0.78);
   text-decoration: none;
   font-size: 14px;
-  transition: all 0.3s;
+  border-left: 4px solid transparent;
+  transition: all 0.25s;
 }
-.nav-item .icon { margin-right: 12px; font-size: 18px; }
-.nav-item:hover, .nav-item.active {
-  background: #16213e;
-  color: #fff;
-  border-left: 4px solid #b71c1c;
-}
-.sidebar-footer { padding: 20px 0; border-top: 1px solid #2a2a4a; }
-.logout { color: #ff6b6b; }
-.logout:hover { color: #ff4757; background: rgba(255,107,107,0.1); border-left: none; }
 
+.nav-item .icon { margin-right: 12px; font-size: 18px; }
+
+.nav-item:hover,
+.nav-item.active {
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+  border-left-color: var(--ep-cian);
+}
+
+.sidebar-footer { padding: 20px 0; border-top: 1px solid rgba(255, 255, 255, 0.18); }
+.logout { color: #ffc9c9; }
+.logout:hover { color: #fff; background: rgba(183, 28, 28, 0.5); border-left-color: transparent; }
+
+/* ===== Zona principal ===== */
 .main-layout { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+
 .top-nav {
   height: 70px;
   background: #fff;
@@ -47,21 +65,30 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  box-shadow: 0 2px 10px rgba(0,0,0,0.03);
+  box-shadow: 0 2px 10px rgba(0, 69, 153, 0.06);
 }
+
 .search-bar input {
   width: 350px;
   padding: 10px 15px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--ep-borde);
   border-radius: 20px;
   outline: none;
+  transition: all 0.3s;
 }
+
+.search-bar input:focus {
+  border-color: var(--ep-azul-claro);
+  box-shadow: 0 0 0 3px rgba(70, 164, 255, 0.2);
+}
+
 .user-info { display: flex; align-items: center; gap: 15px; }
 .text-info { display: flex; flex-direction: column; text-align: right; }
-.text-info strong { font-size: 13px; color: #2d3748; }
-.text-info span { font-size: 12px; color: #718096; }
+.text-info strong { font-size: 13px; color: var(--ep-texto); }
+.text-info span { font-size: 12px; color: var(--ep-texto-suave); }
+
 .avatar {
-  background: #b71c1c;
+  background: var(--ep-azul-medio);
   color: white;
   width: 40px;
   height: 40px;
@@ -73,18 +100,20 @@
 }
 
 .content-area { padding: 30px; overflow-y: auto; }
-.page-title { margin: 0 0 25px; font-size: 22px; color: #2d3748; }
+.page-title { margin: 0 0 25px; font-size: 22px; color: var(--ep-azul-profundo); }
+
+/* ===== Tarjetas de estadísticas (para el panel de control futuro) ===== */
 .stats-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
 .card.stat {
   background: #fff;
   padding: 25px;
   border-radius: 10px;
-  box-shadow: 0 4px 6px rgba(0,0,0,0.02);
+  box-shadow: 0 4px 6px rgba(0, 69, 153, 0.04);
   border-left: 5px solid;
 }
-.card.stat.blue { border-left-color: #3182ce; }
+.card.stat.blue { border-left-color: var(--ep-azul-claro); }
 .card.stat.green { border-left-color: #38a169; }
-.card.stat.red { border-left-color: #e53e3e; }
+.card.stat.red { border-left-color: var(--ep-rojo); }
 .stat-info { display: flex; flex-direction: column; }
-.stat-info .label { font-size: 13px; color: #718096; text-transform: uppercase; font-weight: 600; margin-bottom: 5px; }
-.stat-info .number { font-size: 28px; font-weight: 800; color: #1a202c; }
+.stat-info .label { font-size: 13px; color: var(--ep-texto-suave); text-transform: uppercase; font-weight: 600; margin-bottom: 5px; }
+.stat-info .number { font-size: 28px; font-weight: 800; color: var(--ep-texto); }

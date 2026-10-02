@@ -1,56 +1,40 @@
-import { Component } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { Component, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
+import { AuthService } from '../../services/auth';
 
 @Component({
   selector: 'app-login',
   standalone: true,
-  imports: [CommonModule, FormsModule], // FormsModule es clave para que funcione ngModel
+  imports: [FormsModule],
   templateUrl: './login.html',
   styleUrls: ['./login.css']
 })
 export class LoginComponent {
-  credenciales = {
-    email: '',
-    password: ''
-  };
-  
-  mensajeError = '';
+  private auth = inject(AuthService);
+  private router = inject(Router);
 
-  // Inyectamos el Router para poder cambiar de página tras el login
-  constructor(private router: Router) {}
+  credenciales = { email: '', password: '' };
+  mensajeError = signal('');
+  cargando = signal(false);
 
-  async iniciarSesion() {
-    this.mensajeError = ''; // Limpiamos errores previos
+  iniciarSesion(): void {
+    this.mensajeError.set('');
+    this.cargando.set(true);
 
-    try {
-      const response = await fetch('http://localhost:3000/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(this.credenciales)
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        // Si el backend lanza error (credenciales inválidas, etc.)
-        this.mensajeError = data.mensaje || 'Error al iniciar sesión';
-        return;
+    this.auth.login(this.credenciales.email, this.credenciales.password).subscribe({
+      next: () => {
+        this.cargando.set(false);
+        this.router.navigate(['/dashboard']);
+      },
+      error: (err) => {
+        this.cargando.set(false);
+        if (err.status === 0) {
+          this.mensajeError.set('Error de conexión con el servidor backend.');
+        } else {
+          this.mensajeError.set(err.error?.mensaje || 'Error al iniciar sesión');
+        }
       }
-
-      // LOGIN EXITOSO: Guardamos el token y los datos del usuario en el navegador
-      localStorage.setItem('token', data.token);
-      localStorage.setItem('usuario', JSON.stringify(data.usuario));
-      
-      console.log('Login exitoso. Redirigiendo al Dashboard...');
-      
-      // Redirigir al dashboard (Asegúrate de que esta ruta exista en tu app.routes.ts)
-      this.router.navigate(['/dashboard']); 
-
-    } catch (error) {
-      console.error(error);
-      this.mensajeError = 'Error de conexión con el servidor backend.';
-    }
+    });
   }
 }

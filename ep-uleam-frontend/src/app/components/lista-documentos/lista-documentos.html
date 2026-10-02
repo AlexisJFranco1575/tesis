@@ -4,74 +4,134 @@
       <h2>Repositorio Institucional</h2>
       <p>Gestión centralizada de la documentación de la EP-ULEAM</p>
     </div>
-    <button class="btn-new">+ Cargar Documento</button>
+    <button class="btn-new" type="button" (click)="abrirModal()">+ Cargar Documento</button>
   </div>
 
   <div class="filters-bar">
-    <input type="text" class="search-input" placeholder="🔍 Buscar por código, título o autor...">
-    <select class="filter-select">
-      <option>Todos los departamentos</option>
-      <option>Secretaría General</option>
-      <option>CENFOR</option>
-      <option>Financiero</option>
+    <input type="text" class="search-input" [(ngModel)]="textoBusqueda"
+           placeholder="🔍 Buscar por código, asunto, remitente o hash...">
+    <select class="filter-select" [(ngModel)]="filtroDepartamento">
+      <option value="">Todos los departamentos</option>
+      @for (d of departamentos(); track d) {
+        <option [value]="d">{{ d }}</option>
+      }
     </select>
-    <select class="filter-select">
-      <option>Estado: Todos</option>
-      <option>Aprobados</option>
-      <option>En Revisión</option>
+    <select class="filter-select" [(ngModel)]="filtroEstado">
+      <option value="">Estado: Todos</option>
+      @for (e of estados; track e) {
+        <option [value]="e">{{ e }}</option>
+      }
     </select>
   </div>
 
   <div class="table-wrapper">
-    <table class="modern-table">
-      <thead>
-        <tr>
-          <th>Código</th>
-          <th>Título del Documento</th>
-          <th>Departamento</th>
-          <th>Fecha / Autor</th>
-          <th>Estado</th>
-          <th>Acciones</th>
-        </tr>
-      </thead>
-      <tbody>
-        <!-- Fila de prueba 1 -->
-        <tr>
-          <td><span class="code-badge">EP-MEM-2026-045</span></td>
-          <td><strong>Aprobación Presupuesto Q4</strong><br><span class="doc-type">Memorando Interno</span></td>
-          <td>Financiero</td>
-          <td>24 Sept 2026<br><span class="author-text">Laura Silva</span></td>
-          <td><span class="status-badge approved">Aprobado</span></td>
-          <td>
-            <button class="btn-icon" title="Ver Documento">👁️</button>
-            <button class="btn-icon" title="Ver Trazabilidad">🔗</button>
-          </td>
-        </tr>
-        <!-- Fila de prueba 2 -->
-        <tr>
-          <td><span class="code-badge">EP-OFI-2026-089</span></td>
-          <td><strong>Contrato Limpieza Instalaciones</strong><br><span class="doc-type">Oficio Externo</span></td>
-          <td>Compras Públicas</td>
-          <td>23 Sept 2026<br><span class="author-text">Carlos Mendoza</span></td>
-          <td><span class="status-badge review">En Revisión</span></td>
-          <td>
-            <button class="btn-icon" title="Ver Documento">👁️</button>
-            <button class="btn-icon" title="Ver Trazabilidad">🔗</button>
-          </td>
-        </tr>
-        <!-- Fila de prueba 3 -->
-        <tr>
-          <td><span class="code-badge">EP-RES-2026-012</span></td>
-          <td><strong>Nombramiento Personal Docente</strong><br><span class="doc-type">Resolución</span></td>
-          <td>Talento Humano</td>
-          <td>20 Sept 2026<br><span class="author-text">Alexis Franco</span></td>
-          <td><span class="status-badge archived">Archivado</span></td>
-          <td>
-            <button class="btn-icon" title="Ver Documento">👁️</button>
-            <button class="btn-icon" title="Ver Trazabilidad">🔗</button>
-          </td>
-        </tr>
-      </tbody>
-    </table>
+    @if (cargando()) {
+      <div class="estado-vacio">Cargando documentos...</div>
+    } @else if (errorCarga()) {
+      <div class="estado-vacio estado-error">{{ errorCarga() }}</div>
+    } @else if (documentosFiltrados().length === 0) {
+      <div class="estado-vacio">No hay documentos que coincidan. Use "+ Cargar Documento" para registrar el primero.</div>
+    } @else {
+      <table class="modern-table">
+        <thead>
+          <tr>
+            <th>Código</th>
+            <th>Asunto</th>
+            <th>Departamento</th>
+            <th>Fecha / Remitente</th>
+            <th>Versión</th>
+            <th>Estado</th>
+            <th>Acciones</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (doc of documentosFiltrados(); track doc._id) {
+            <tr>
+              <td><span class="code-badge">{{ doc.codigoTramite }}</span></td>
+              <td>
+                <strong>{{ doc.asunto }}</strong><br>
+                <span class="doc-type">{{ doc.tipoDocumento }}</span>
+              </td>
+              <td>{{ doc.remitente.departamento }}</td>
+              <td>
+                {{ doc.createdAt | date: 'dd MMM yyyy' }}<br>
+                <span class="author-text">{{ doc.remitente.nombre }}</span>
+              </td>
+              <td><span class="code-badge">v{{ doc.versionActual }}</span></td>
+              <td>
+                <span class="status-badge" [class]="'status-badge ' + claseEstado(doc.estado)">{{ doc.estado }}</span>
+                @if (doc.bloqueado) {
+                  <span class="badge-bloqueado">🔒 Bloqueado</span>
+                }
+              </td>
+              <td>
+                <button class="btn-icon" type="button" title="Ver detalle y versiones" (click)="verDetalle(doc._id)">🔍</button>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    }
   </div>
 </div>
+
+@if (modalAbierto()) {
+  <div class="modal-fondo" (click)="cerrarModal()">
+    <div class="modal" (click)="$event.stopPropagation()">
+      <div class="modal-encabezado">
+        <h3>Cargar documento</h3>
+        <button class="btn-cerrar" type="button" (click)="cerrarModal()">✕</button>
+      </div>
+
+      <form class="modal-cuerpo" (ngSubmit)="guardar()">
+        <div class="campo">
+          <label>Código de trámite</label>
+          <input type="text" name="codigoTramite" [(ngModel)]="formulario.codigoTramite" placeholder="EP-ULEAM-2026-001">
+        </div>
+        <div class="campo">
+          <label>Tipo de documento</label>
+          <select name="tipoDocumento" [(ngModel)]="formulario.tipoDocumento">
+            @for (t of tipos; track t) {
+              <option [value]="t">{{ t }}</option>
+            }
+          </select>
+        </div>
+        <div class="campo completo">
+          <label>Asunto</label>
+          <input type="text" name="asunto" [(ngModel)]="formulario.asunto" placeholder="Ej. Aprobación de presupuesto">
+        </div>
+        <div class="campo">
+          <label>Remitente</label>
+          <input type="text" name="remitenteNombre" [(ngModel)]="formulario.remitenteNombre">
+        </div>
+        <div class="campo">
+          <label>Departamento del remitente</label>
+          <input type="text" name="remitenteDepartamento" [(ngModel)]="formulario.remitenteDepartamento">
+        </div>
+        <div class="campo">
+          <label>Destinatario</label>
+          <input type="text" name="destinatarioNombre" [(ngModel)]="formulario.destinatarioNombre">
+        </div>
+        <div class="campo">
+          <label>Departamento del destinatario</label>
+          <input type="text" name="destinatarioDepartamento" [(ngModel)]="formulario.destinatarioDepartamento">
+        </div>
+        <div class="campo completo">
+          <label>Archivo PDF</label>
+          <input type="file" name="archivo" accept="application/pdf" (change)="alSeleccionarArchivo($event)">
+        </div>
+
+        @if (errorFormulario()) {
+          <div class="modal-error">{{ errorFormulario() }}</div>
+        }
+
+        <div class="modal-pie">
+          <button class="btn-secundario" type="button" (click)="cerrarModal()">Cancelar</button>
+          <button class="btn-new" type="submit" [disabled]="guardando()">
+            {{ guardando() ? 'Guardando...' : 'Guardar y generar hash' }}
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+}

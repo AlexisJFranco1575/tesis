@@ -1,65 +1,117 @@
 <div class="module-container">
   <div class="audit-top">
-    <button class="btn-back">← Volver a Documentos</button>
-    <div class="doc-summary">
-      <span class="badge-integrity valid">✓ Cadena Íntegra</span>
-      <h2>EP-MEM-2026-045: Aprobación Presupuesto Q4</h2>
+    <div class="audit-title">
+      <h2>Bitácora y Auditoría de Integridad</h2>
+      <p>Historial de acciones del sistema, encadenado con SHA-256</p>
     </div>
+    <button class="btn-auditar" type="button" (click)="ejecutarAuditoria()" [disabled]="ejecutando()">
+      {{ ejecutando() ? 'Auditando...' : '🛡️ Ejecutar auditoría general' }}
+    </button>
   </div>
 
-  <div class="timeline-container">
-    
-    <!-- Versión 2: Actual -->
-    <div class="timeline-node">
-      <div class="node-marker current"></div>
-      <div class="node-content">
-        <div class="node-header">
-          <h3>Versión 2.0 (Actual) - Aprobado</h3>
-          <span class="date">24 Septiembre 2026, 10:41 AM</span>
-        </div>
-        <div class="node-body">
-          <p><strong>Acción por:</strong> Laura Silva (Financiero)</p>
-          <p><strong>Detalle:</strong> Documento revisado y firmado digitalmente para su ejecución inmediata.</p>
-          
-          <div class="hash-panel">
-            <div class="hash-row">
-              <span class="hash-label">Hash Anterior (Enlace):</span>
-              <code class="hash-string linked">8d969eef6ecad3c29a3a629280e686cf0c3f5d5a86aff3ca12020c923adc6c92</code>
-            </div>
-            <div class="hash-row active">
-              <span class="hash-label">Hash Documento Actual:</span>
-              <code class="hash-string">e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855</code>
-            </div>
-          </div>
+  @if (errorAuditoria()) {
+    <div class="banner alterado"><p>{{ errorAuditoria() }}</p></div>
+  }
+
+  <!-- Resultado de la auditoría general -->
+  @if (resultado(); as r) {
+    <div class="banner" [class.valido]="r.valido" [class.alterado]="!r.valido">
+      <span class="badge-integrity" [class.valid]="r.valido" [class.invalid]="!r.valido">
+        {{ r.valido ? '✓ Todo íntegro' : '✗ Alteración detectada' }}
+      </span>
+      <p>{{ r.mensaje }}</p>
+
+      <div class="cifras">
+        <div><strong>{{ r.documentosAnalizados }}</strong><span>Documentos analizados</span></div>
+        <div><strong>{{ r.versionesAnalizadas }}</strong><span>Versiones analizadas</span></div>
+        <div><strong>{{ r.bitacora.totalEntradas }}</strong><span>Entradas de bitácora</span></div>
+        <div>
+          <strong [class.texto-ok]="r.bitacora.integra" [class.texto-alerta]="!r.bitacora.integra">
+            {{ r.bitacora.integra ? 'Íntegra' : 'Alterada' }}
+          </strong>
+          <span>Cadena de la bitácora</span>
         </div>
       </div>
-    </div>
 
-    <!-- Versión 1: Génesis -->
-    <div class="timeline-node genesis">
-      <div class="node-marker"></div>
-      <div class="node-content">
-        <div class="node-header">
-          <h3>Versión 1.0 (Génesis) - Creación</h3>
-          <span class="date">22 Septiembre 2026, 08:15 AM</span>
-        </div>
-        <div class="node-body">
-          <p><strong>Acción por:</strong> Johan Chávez (Secretaría General)</p>
-          <p><strong>Detalle:</strong> Carga inicial del borrador del presupuesto para revisión.</p>
-          
-          <div class="hash-panel">
-            <div class="hash-row">
-              <span class="hash-label">Hash Anterior:</span>
-              <code class="hash-string null">0000000000000000000000000000000000000000000000000000000000000000</code>
-            </div>
-            <div class="hash-row">
-              <span class="hash-label">Hash Documento Actual:</span>
-              <code class="hash-string">8d969eef6ecad3c29a3a629280e686cf0c3f5d5a86aff3ca12020c923adc6c92</code>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
+      @if (r.documentosAlterados.length > 0) {
+        <h4>Documentos alterados (ahora bloqueados)</h4>
+        <ul>
+          @for (d of r.documentosAlterados; track d.documentoId) {
+            <li>
+              <a [routerLink]="['/dashboard/documentos', d.documentoId]">{{ d.codigoTramite }}</a>
+              — versión(es):
+              @for (v of d.versiones; track v.numero) { <span>v{{ v.numero }} </span> }
+            </li>
+          }
+        </ul>
+      }
 
+      @if (r.bitacora.errores.length > 0) {
+        <h4>Problemas en la bitácora</h4>
+        <ul>
+          @for (e of r.bitacora.errores; track $index) {
+            <li>{{ e }}</li>
+          }
+        </ul>
+      }
+    </div>
+  }
+
+  <!-- Filtros -->
+  <div class="filtros">
+    <input type="text" class="search-input" [(ngModel)]="textoBusqueda"
+           placeholder="🔍 Buscar por documento, usuario o detalle...">
+    <select class="filter-select" [(ngModel)]="filtroAccion">
+      <option value="">Todas las acciones</option>
+      @for (a of acciones(); track a) {
+        <option [value]="a">{{ etiqueta(a) }}</option>
+      }
+    </select>
+  </div>
+
+  <!-- Tabla de la bitácora -->
+  <div class="table-wrapper">
+    @if (cargando()) {
+      <div class="estado-vacio">Cargando bitácora...</div>
+    } @else if (errorCarga()) {
+      <div class="estado-vacio estado-error">{{ errorCarga() }}</div>
+    } @else if (entradasFiltradas().length === 0) {
+      <div class="estado-vacio">No hay acciones registradas que coincidan.</div>
+    } @else {
+      <table class="modern-table">
+        <thead>
+          <tr>
+            <th>Fecha y hora</th>
+            <th>Acción</th>
+            <th>Documento</th>
+            <th>Usuario</th>
+            <th>Detalle</th>
+            <th>Hash</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (e of entradasFiltradas(); track e._id) {
+            <tr>
+              <td class="nowrap">{{ e.fecha | date: 'dd MMM yyyy, HH:mm:ss' }}</td>
+              <td><span class="insignia" [class]="'insignia ' + clase(e.accion)">{{ etiqueta(e.accion) }}</span></td>
+              <td>
+                @if (e.documento) {
+                  <a class="enlace" [routerLink]="['/dashboard/documentos', e.documento]">{{ e.codigoTramite }}</a>
+                } @else {
+                  —
+                }
+              </td>
+              <td>{{ e.usuario.nombre }}<br><span class="sub">{{ e.usuario.rol }}</span></td>
+              <td class="detalle">{{ e.detalle || '—' }}</td>
+              <td>
+                <code class="hash" [title]="'Hash anterior: ' + e.hashAnterior + '\nHash de esta entrada: ' + e.hashActual">
+                  {{ hashCorto(e.hashActual) }}
+                </code>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    }
   </div>
 </div>

@@ -3,47 +3,44 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
-  font-family: 'Inter', -apple-system, sans-serif;
-  margin: -8px; /* Elimina márgenes por defecto del body si no tienes un reset global */
+  background: linear-gradient(135deg, var(--ep-azul-profundo) 0%, var(--ep-azul-principal) 100%);
+  padding: 20px;
+  box-sizing: border-box;
 }
 
 .auth-card {
-  background: #ffffff;
+  background: var(--ep-superficie);
   width: 100%;
   max-width: 420px;
   border-radius: 12px;
-  box-shadow: 0 20px 40px rgba(0,0,0,0.4);
+  border-top: 4px solid var(--ep-cian);
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.35);
   padding: 40px;
   box-sizing: border-box;
 }
 
 .brand-section {
   text-align: center;
-  margin-bottom: 35px;
+  margin-bottom: 30px;
 }
 
-.logo-placeholder {
-  background: #b71c1c; /* Rojo ULEAM */
-  color: white;
-  font-weight: 900;
-  font-size: 24px;
-  padding: 15px;
-  border-radius: 8px;
-  display: inline-block;
-  margin-bottom: 15px;
-  letter-spacing: 1px;
+.logo {
+  display: block;
+  width: 230px;
+  max-width: 100%;
+  height: auto;
+  margin: 0 auto 20px;
 }
 
 .brand-section h2 {
   margin: 0 0 5px;
-  color: #1a1a2e;
+  color: var(--ep-azul-profundo);
   font-size: 22px;
 }
 
 .brand-section p {
   margin: 0;
-  color: #6c757d;
+  color: var(--ep-texto-suave);
   font-size: 13px;
 }
 
@@ -55,7 +52,7 @@
   display: block;
   font-size: 13px;
   font-weight: 600;
-  color: #2b2b2b;
+  color: var(--ep-texto);
   margin-bottom: 8px;
 }
 
@@ -68,13 +65,14 @@
 .input-wrapper .icon {
   position: absolute;
   left: 14px;
-  color: #adb5bd;
+  color: var(--ep-azul-medio);
+  opacity: 0.7;
 }
 
 .input-wrapper input {
   width: 100%;
   padding: 12px 12px 12px 40px;
-  border: 1px solid #ced4da;
+  border: 1px solid var(--ep-borde);
   border-radius: 6px;
   font-size: 14px;
   transition: all 0.3s ease;
@@ -82,9 +80,9 @@
 }
 
 .input-wrapper input:focus {
-  border-color: #b71c1c;
+  border-color: var(--ep-azul-claro);
   outline: none;
-  box-shadow: 0 0 0 3px rgba(183, 28, 28, 0.1);
+  box-shadow: 0 0 0 3px rgba(70, 164, 255, 0.25);
 }
 
 .form-actions {
@@ -93,17 +91,23 @@
   align-items: center;
   margin-bottom: 25px;
   font-size: 13px;
+  color: var(--ep-texto-suave);
 }
 
 .forgot-pwd {
-  color: #b71c1c;
+  color: var(--ep-azul-medio);
   text-decoration: none;
   font-weight: 600;
 }
 
+.forgot-pwd:hover {
+  color: var(--ep-azul-profundo);
+  text-decoration: underline;
+}
+
 .btn-login {
   width: 100%;
-  background: #b71c1c;
+  background: var(--ep-azul-medio);
   color: white;
   border: none;
   padding: 14px;
@@ -115,12 +119,18 @@
 }
 
 .btn-login:hover {
-  background: #901616;
+  background: var(--ep-azul-profundo);
+}
+
+.btn-login:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
 }
 
 .error-alert {
-  background-color: #fed7d7;
-  color: #9b2c2c;
+  background-color: #fde8e8;
+  color: var(--ep-rojo-oscuro);
+  border: 1px solid #f5b5b5;
   padding: 10px;
   border-radius: 6px;
   margin-bottom: 15px;

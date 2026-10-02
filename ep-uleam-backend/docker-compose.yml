@@ -4,14 +4,14 @@ services:
     container_name: ep_uleam_api
     ports:
       - "3000:3000"
-    environment:
-      - PORT=3000
-      - MONGODB_URI=mongodb://mongo:27017/epuleam_docs
+    env_file:
+      - .env
     volumes:
       - ./src:/usr/src/app/src
       - ./uploads:/usr/src/app/uploads
     depends_on:
-      - mongo
+      mongo:
+        condition: service_healthy
     networks:
       - ep_uleam_network
 
@@ -19,9 +19,15 @@ services:
     image: mongo:latest
     container_name: ep_uleam_db
     ports:
-      - "27017:27017"
+      - "127.0.0.1:27017:27017"
     volumes:
       - mongo_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
     networks:
       - ep_uleam_network
 

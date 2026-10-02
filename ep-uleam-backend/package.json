@@ -1,11 +1,11 @@
 {
   "name": "ep-uleam-backend",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "description": "API del Sistema de Gestión Documental EP-ULEAM con trazabilidad SHA-256",
+  "main": "src/index.js",
   "scripts": {
     "start": "node src/index.js",
-    "dev": "nodemon src/index.js"
+    "dev": "nodemon -L src/index.js"
   },
   "keywords": [],
   "author": "",
@@ -17,7 +17,6 @@
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
     "jsonwebtoken": "^9.0.3",
-    "mongodb": "3.7",
     "mongoose": "^9.10.1",
     "multer": "^2.4.0"
   },

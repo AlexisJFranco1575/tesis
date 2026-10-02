@@ -1,1 +1,46 @@
-/* You can add global styles to this file, and also import other style files */
+/* ===== Paleta institucional EP-ULEAM ===== */
+:root {
+  --ep-azul-profundo: #004499;
+  --ep-azul-principal: #005689;
+  --ep-azul-medio: #0059a8;
+  --ep-cian: #03e7f5;
+  --ep-azul-claro: #46a4ff;
+
+  /* Rojo del logo: se reserva para alertas y acciones peligrosas */
+  --ep-rojo: #b71c1c;
+  --ep-rojo-oscuro: #901616;
+
+  /* Neutros */
+  --ep-texto: #1f2a37;
+  --ep-texto-suave: #5b6b7c;
+  --ep-borde: #dce6f0;
+  --ep-fondo: #f2f6fa;
+  --ep-superficie: #ffffff;
+  --ep-azul-fondo-suave: #e8f1fb;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: 'Inter', -apple-system, 'Segoe UI', Roboto, sans-serif;
+  color: var(--ep-texto);
+  background: var(--ep-fondo);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Etiqueta de documento bloqueado (se usa en la lista y en el detalle) */
+.badge-bloqueado {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  background: #fed7d7;
+  color: #742a2a;
+  border: 1px solid #feb2b2;
+}

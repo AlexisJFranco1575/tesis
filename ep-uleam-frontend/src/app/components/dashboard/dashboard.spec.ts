@@ -1,21 +1,41 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { Dashboard } from './dashboard';
+import { provideHttpClient } from '@angular/common/http';
+import { provideHttpClientTesting } from '@angular/common/http/testing';
+import { provideRouter } from '@angular/router';
+import { DashboardComponent } from './dashboard';
 
-describe('Dashboard', () => {
-  let component: Dashboard;
-  let fixture: ComponentFixture<Dashboard>;
+describe('DashboardComponent', () => {
+  let component: DashboardComponent;
+  let fixture: ComponentFixture<DashboardComponent>;
 
   beforeEach(async () => {
+    localStorage.setItem(
+      'usuario',
+      JSON.stringify({
+        id: '1',
+        nombreCompleto: 'Alexis Franco',
+        rol: 'Administrador',
+        departamento: 'TIC',
+      })
+    );
+
     await TestBed.configureTestingModule({
-      imports: [Dashboard],
+      imports: [DashboardComponent],
+      providers: [provideRouter([]), provideHttpClient(), provideHttpClientTesting()],
     }).compileComponents();
 
-    fixture = TestBed.createComponent(Dashboard);
+    fixture = TestBed.createComponent(DashboardComponent);
     component = fixture.componentInstance;
-    await fixture.whenStable();
+    fixture.detectChanges();
   });
 
-  it('should create', () => {
+  afterEach(() => localStorage.clear());
+
+  it('debería crearse', () => {
     expect(component).toBeTruthy();
+  });
+
+  it('calcula las iniciales del usuario', () => {
+    expect(component.iniciales).toBe('AF');
   });
 });

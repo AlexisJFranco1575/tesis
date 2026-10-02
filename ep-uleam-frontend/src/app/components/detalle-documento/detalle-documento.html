@@ -1,0 +1,251 @@
+<div class="pagina">
+  <a class="volver" routerLink="/dashboard/documentos">← Volver a documentos</a>
+
+  @if (cargando()) {
+    <div class="estado-vacio">Cargando documento...</div>
+  } @else if (error()) {
+    <div class="estado-vacio estado-error">{{ error() }}</div>
+  } @else if (documento(); as doc) {
+
+    <!-- Encabezado y acciones -->
+    <div class="encabezado">
+      <div>
+        <h2>{{ doc.codigoTramite }}</h2>
+        <p class="sub">{{ doc.tipoDocumento }} · versión actual v{{ doc.versionActual }}</p>
+      </div>
+      <div class="acciones">
+        <button class="btn-primario" type="button" (click)="abrirModalVersion()" [disabled]="doc.bloqueado"
+                [title]="doc.bloqueado ? 'El documento está bloqueado' : ''">
+          + Nueva versión
+        </button>
+        @if (esControl) {
+          <button class="btn-secundario" type="button" (click)="verificar()" [disabled]="verificando()">
+            {{ verificando() ? 'Verificando...' : '🛡️ Verificar integridad' }}
+          </button>
+        }
+      </div>
+    </div>
+
+    @if (mensaje(); as m) {
+      <div class="aviso" [class.ok]="m.tipo === 'ok'" [class.error]="m.tipo === 'error'">{{ m.texto }}</div>
+    }
+
+    <!-- Alerta de bloqueo -->
+    @if (doc.bloqueado) {
+      <div class="alerta-bloqueo">
+        <div>
+          <strong>🔒 Documento bloqueado por alerta de alteración</strong>
+          <p>{{ doc.motivoBloqueo }}</p>
+        </div>
+        @if (esControl) {
+          <button class="btn-secundario" type="button" (click)="abrirModalDesbloqueo()">Desbloquear</button>
+        }
+      </div>
+    }
+
+    <!-- Resultado de la verificación -->
+    @if (verificacion(); as v) {
+      <div class="tarjeta resultado" [class.valido]="v.valido" [class.alterado]="!v.valido && !v.sinHash">
+        <div class="resultado-titulo">
+          <span class="insignia" [class.ok]="v.valido" [class.alerta]="!v.valido">
+            {{ v.valido ? '✓ Íntegro' : '✗ Alteración detectada' }}
+          </span>
+          <button class="btn-cerrar" type="button" title="Cerrar" (click)="verificacion.set(null)">✕</button>
+        </div>
+        <p>{{ v.mensaje }}</p>
+
+        @if (v.versiones.length > 0) {
+          <div class="tabla-scroll">
+            <table class="tabla">
+              <thead>
+                <tr>
+                  <th>Versión</th>
+                  <th>Hash registrado</th>
+                  <th>Hash recalculado</th>
+                  <th>Resultado</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (ver of v.versiones; track ver.numero) {
+                  <tr>
+                    <td><strong>v{{ ver.numero }}</strong></td>
+                    <td><code class="hash" [title]="ver.hashAlmacenado">{{ hashCorto(ver.hashAlmacenado) }}</code></td>
+                    <td>
+                      @if (ver.archivoExiste) {
+                        <code class="hash" [title]="ver.hashCalculado ?? ''">{{ hashCorto(ver.hashCalculado) }}</code>
+                      } @else {
+                        <span class="texto-alerta">Archivo ausente</span>
+                      }
+                    </td>
+                    <td>
+                      <span class="insignia" [class.ok]="ver.coincide" [class.alerta]="!ver.coincide">
+                        {{ ver.coincide ? 'Coincide' : 'No coincide' }}
+                      </span>
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        }
+      </div>
+    }
+
+    <!-- Información -->
+    <div class="tarjeta">
+      <h3>Información del documento</h3>
+      <div class="info-grid">
+        <div><span class="etiqueta">Asunto</span><span>{{ doc.asunto }}</span></div>
+        <div>
+          <span class="etiqueta">Estado</span>
+          <span>
+            <span class="status-badge" [class]="'status-badge ' + claseEstado(doc.estado)">{{ doc.estado }}</span>
+            @if (doc.bloqueado) {
+              <span class="badge-bloqueado">🔒 Bloqueado</span>
+            }
+          </span>
+        </div>
+        <div><span class="etiqueta">Remitente</span><span>{{ doc.remitente.nombre }} ({{ doc.remitente.departamento }})</span></div>
+        <div><span class="etiqueta">Destinatario</span><span>{{ doc.destinatario.nombre }} ({{ doc.destinatario.departamento }})</span></div>
+        <div><span class="etiqueta">Registrado por</span><span>{{ doc.creadoPor.nombre }}</span></div>
+        <div><span class="etiqueta">Fecha de registro</span><span>{{ doc.createdAt | date: 'dd MMM yyyy, HH:mm' }}</span></div>
+        <div class="completo">
+          <span class="etiqueta">SHA-256 de la versión actual</span>
+          <code class="hash-completo">{{ doc.hashActual }}</code>
+        </div>
+      </div>
+    </div>
+
+    <!-- Versiones -->
+    <div class="tarjeta">
+      <h3>Versiones ({{ versiones().length }})</h3>
+      <div class="tabla-scroll">
+        <table class="tabla">
+          <thead>
+            <tr>
+              <th>Versión</th>
+              <th>Archivo</th>
+              <th>Motivo del cambio</th>
+              <th>Subida por</th>
+              <th>Fecha</th>
+              <th>SHA-256</th>
+              <th>Acciones</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (ver of versiones(); track ver.numero) {
+              <tr>
+                <td>
+                  <strong>v{{ ver.numero }}</strong>
+                  @if (ver.esActual) {
+                    <span class="insignia actual">Actual</span>
+                  }
+                </td>
+                <td>{{ ver.nombreOriginal }}<br><span class="sub">{{ formatearTamano(ver.tamanoBytes) }}</span></td>
+                <td>{{ ver.comentario || '—' }}</td>
+                <td>{{ ver.creadoPor.nombre }}</td>
+                <td>{{ ver.createdAt | date: 'dd MMM yyyy, HH:mm' }}</td>
+                <td><code class="hash" [title]="ver.hashArchivo">{{ hashCorto(ver.hashArchivo) }}</code></td>
+                <td class="celda-acciones">
+                  <button class="btn-icon" type="button" title="Ver PDF" (click)="verVersion(ver)">👁</button>
+                  <button class="btn-icon" type="button" title="Descargar" (click)="descargar(ver)">⬇</button>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Trazabilidad (solo roles de control) -->
+    @if (esControl) {
+      <div class="tarjeta">
+        <h3>Trazabilidad del documento</h3>
+        @if (trazabilidad().length === 0) {
+          <p class="sub">Aún no hay acciones registradas.</p>
+        } @else {
+          <ul class="linea-tiempo">
+            @for (e of trazabilidad(); track e._id) {
+              <li class="evento" [class]="'evento ' + clase(e.accion)">
+                <div class="evento-cabecera">
+                  <strong>{{ etiqueta(e.accion) }}</strong>
+                  <span class="sub">{{ e.fecha | date: 'dd MMM yyyy, HH:mm:ss' }}</span>
+                </div>
+                <div class="sub">{{ e.usuario.nombre }} · {{ e.usuario.rol }}</div>
+                @if (e.detalle) {
+                  <div class="evento-detalle">{{ e.detalle }}</div>
+                }
+              </li>
+            }
+          </ul>
+        }
+      </div>
+    }
+  }
+</div>
+
+<!-- Ventana: nueva versión -->
+@if (modalVersion()) {
+  <div class="modal-fondo" (click)="cerrarModalVersion()">
+    <div class="modal" (click)="$event.stopPropagation()">
+      <div class="modal-encabezado">
+        <h3>Nueva versión</h3>
+        <button class="btn-cerrar" type="button" (click)="cerrarModalVersion()">✕</button>
+      </div>
+
+      <form class="modal-cuerpo" (ngSubmit)="guardarVersion()">
+        <p class="sub">La versión anterior se conserva. La nueva tendrá su propio hash SHA-256.</p>
+        <div class="campo">
+          <label>Motivo del cambio</label>
+          <input type="text" name="comentario" [(ngModel)]="comentario" placeholder="Ej. Corrección de cifras">
+        </div>
+        <div class="campo">
+          <label>Archivo PDF</label>
+          <input type="file" name="archivo" accept="application/pdf" (change)="alSeleccionarArchivo($event)">
+        </div>
+
+        @if (errorVersion()) {
+          <div class="modal-error">{{ errorVersion() }}</div>
+        }
+
+        <div class="modal-pie">
+          <button class="btn-secundario" type="button" (click)="cerrarModalVersion()">Cancelar</button>
+          <button class="btn-primario" type="submit" [disabled]="guardandoVersion()">
+            {{ guardandoVersion() ? 'Guardando...' : 'Guardar y generar hash' }}
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+}
+
+<!-- Ventana: desbloqueo -->
+@if (modalDesbloqueo()) {
+  <div class="modal-fondo" (click)="cerrarModalDesbloqueo()">
+    <div class="modal" (click)="$event.stopPropagation()">
+      <div class="modal-encabezado">
+        <h3>Desbloquear documento</h3>
+        <button class="btn-cerrar" type="button" (click)="cerrarModalDesbloqueo()">✕</button>
+      </div>
+
+      <form class="modal-cuerpo" (ngSubmit)="confirmarDesbloqueo()">
+        <p class="sub">El sistema vuelve a verificar los archivos. Solo se desbloquea si todos coinciden con su hash registrado.</p>
+        <div class="campo">
+          <label>Motivo del desbloqueo</label>
+          <input type="text" name="motivo" [(ngModel)]="motivoDesbloqueo" placeholder="Ej. Archivo restaurado desde respaldo">
+        </div>
+
+        @if (errorDesbloqueo()) {
+          <div class="modal-error">{{ errorDesbloqueo() }}</div>
+        }
+
+        <div class="modal-pie">
+          <button class="btn-secundario" type="button" (click)="cerrarModalDesbloqueo()">Cancelar</button>
+          <button class="btn-primario" type="submit" [disabled]="desbloqueando()">
+            {{ desbloqueando() ? 'Verificando...' : 'Desbloquear' }}
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+}
