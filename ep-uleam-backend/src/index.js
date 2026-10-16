@@ -4,6 +4,7 @@ const cors = require('cors');
 const mongoose = require('mongoose');
 
 const authRoutes = require('./routes/authRoutes');
+const usuariosRoutes = require('./routes/usuarios.routes');
 const documentosRoutes = require('./routes/documentos.routes');
 const bitacoraRoutes = require('./routes/bitacora.routes');
 
@@ -33,6 +34,7 @@ app.get('/api/salud', (req, res) => {
 
 // RUTAS
 app.use('/api/auth', authRoutes);
+app.use('/api/usuarios', usuariosRoutes);
 app.use('/api/documentos', documentosRoutes);
 app.use('/api/bitacora', bitacoraRoutes);
 

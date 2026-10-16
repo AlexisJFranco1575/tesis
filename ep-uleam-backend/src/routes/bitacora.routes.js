@@ -1,13 +1,11 @@
 const express = require('express');
 const router = express.Router();
-const { verificarToken, verificarRol } = require('../middlewares/auth');
-const { ROLES_CONTROL } = require('../config/roles');
+const { verificarToken, requierePermiso } = require('../middlewares/auth');
 const { listarBitacora, ejecutarAuditoria } = require('../controllers/bitacora.controller');
 
-// Solo los roles de control ven la bitácora y ejecutan auditorías
-router.use(verificarToken, verificarRol(ROLES_CONTROL));
+router.use(verificarToken);
 
-router.get('/', listarBitacora);
-router.post('/auditoria', ejecutarAuditoria);
+router.get('/', requierePermiso('bitacora.consultar'), listarBitacora);
+router.post('/auditoria', requierePermiso('auditoria.ejecutar'), ejecutarAuditoria);
 
 module.exports = router;

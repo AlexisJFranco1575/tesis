@@ -1,7 +1,7 @@
-// src/models/Bitacora.js
 const mongoose = require('mongoose');
 
 const ACCIONES = [
+    // Documentos
     'REGISTRO_DOCUMENTO',
     'NUEVA_VERSION',
     'CONSULTA_DOCUMENTO',
@@ -9,7 +9,21 @@ const ACCIONES = [
     'VERIFICACION_INTEGRIDAD',
     'ALERTA_ALTERACION',
     'DESBLOQUEO',
-    'AUDITORIA_GENERAL'
+    'AUDITORIA_GENERAL',
+    // Seguridad y acceso
+    'INICIO_SESION',
+    'LOGIN_FALLIDO',
+    'CUENTA_BLOQUEADA',
+    'CIERRE_SESION',
+    'CAMBIO_PASSWORD',
+    'SOLICITUD_RECUPERACION',
+    'CLAVE_TEMPORAL',
+    // Administración de usuarios
+    'USUARIO_REGISTRADO',
+    'USUARIO_BAJA',
+    'USUARIO_REACTIVADO',
+    'ROLES_MODIFICADOS',
+    'PERMISOS_MODIFICADOS'
 ];
 
 const bitacoraSchema = new mongoose.Schema({

@@ -6,7 +6,6 @@ const Version = require('../models/Version');
 const { hashArchivo } = require('../utils/hash.service');
 const { registrarAccion } = require('../services/bitacora.service');
 const { verificarVersiones, gestionarAlteracion, verificarDocumento } = require('../services/integridad.service');
-const { ROLES_CONTROL } = require('../config/roles');
 
 // ---------- Utilidades ----------
 
@@ -282,7 +281,8 @@ const descargarVersion = async (req, res) => {
             return res.status(404).json({ mensaje: 'Versión no encontrada.' });
         }
 
-        if (documento.bloqueado && !ROLES_CONTROL.includes(req.usuario.rol)) {
+        // Un documento bloqueado solo lo abre quien puede verificar su integridad
+        if (documento.bloqueado && !req.usuario.permisos.includes('integridad.verificar')) {
             return res.status(423).json({ mensaje: 'El documento está bloqueado por una alerta de alteración.' });
         }
 

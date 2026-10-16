@@ -1,8 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const upload = require('../middlewares/upload.middleware');
-const { verificarToken, verificarRol } = require('../middlewares/auth');
-const { ROLES_CONTROL } = require('../config/roles');
+const { verificarToken, requierePermiso } = require('../middlewares/auth');
 const {
     crearDocumento,
     obtenerDocumentos,
@@ -17,17 +16,17 @@ const {
 // Todas las rutas de documentos requieren sesión iniciada
 router.use(verificarToken);
 
-router.post('/', upload.single('archivo'), crearDocumento);
-router.get('/', obtenerDocumentos);
-router.get('/:id', obtenerDocumento);
+router.post('/', requierePermiso('documentos.registrar'), upload.single('archivo'), crearDocumento);
+router.get('/', requierePermiso('documentos.consultar'), obtenerDocumentos);
+router.get('/:id', requierePermiso('documentos.consultar'), obtenerDocumento);
 
 // Versiones
-router.get('/:id/versiones', listarVersiones);
-router.post('/:id/versiones', upload.single('archivo'), crearVersion);
-router.get('/:id/versiones/:numero/archivo', descargarVersion);
+router.get('/:id/versiones', requierePermiso('documentos.consultar'), listarVersiones);
+router.post('/:id/versiones', requierePermiso('documentos.versionar'), upload.single('archivo'), crearVersion);
+router.get('/:id/versiones/:numero/archivo', requierePermiso('documentos.descargar'), descargarVersion);
 
-// Integridad (solo roles de control)
-router.post('/:id/verificar', verificarRol(ROLES_CONTROL), verificarIntegridad);
-router.post('/:id/desbloquear', verificarRol(ROLES_CONTROL), desbloquearDocumento);
+// Integridad
+router.post('/:id/verificar', requierePermiso('integridad.verificar'), verificarIntegridad);
+router.post('/:id/desbloquear', requierePermiso('integridad.desbloquear'), desbloquearDocumento);
 
 module.exports = router;
