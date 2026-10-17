@@ -1,8 +1,8 @@
-// src/services/bitacora.service.js
 const Bitacora = require('../models/Bitacora');
 const { HASH_GENESIS, hashEntrada } = require('../utils/hash.service');
+const { notificarEventoSistema } = require('./notificacion.service');
 
-// Convierte los datos del usuario (payload del JWT) al formato que guarda la bitácora
+// Convierte los datos del usuario (sesión) al formato que guarda la bitácora
 const normalizarUsuario = (usuario) => ({
     id: usuario?.id ? String(usuario.id) : '',
     nombre: usuario?.nombreCompleto || usuario?.nombre || 'Sistema',
@@ -23,7 +23,14 @@ const guardarEntrada = async ({ accion, documento = null, codigoTramite = '', us
     };
 
     const hashActual = hashEntrada(datos, hashAnterior);
-    return Bitacora.create({ ...datos, hashAnterior, hashActual });
+    const entrada = await Bitacora.create({ ...datos, hashAnterior, hashActual });
+
+    // Las notificaciones nunca deben impedir que la acción quede registrada
+    notificarEventoSistema(entrada).catch((error) =>
+        console.error('Error al generar notificaciones:', error.message)
+    );
+
+    return entrada;
 };
 
 // Cola: las entradas se guardan de una en una para mantener el orden de la cadena

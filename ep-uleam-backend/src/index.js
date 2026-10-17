@@ -7,6 +7,7 @@ const authRoutes = require('./routes/authRoutes');
 const usuariosRoutes = require('./routes/usuarios.routes');
 const documentosRoutes = require('./routes/documentos.routes');
 const bitacoraRoutes = require('./routes/bitacora.routes');
+const notificacionesRoutes = require('./routes/notificaciones.routes');
 
 // Variables obligatorias: si faltan, el servidor no arranca
 const { MONGODB_URI, JWT_SECRET } = process.env;
@@ -37,6 +38,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/usuarios', usuariosRoutes);
 app.use('/api/documentos', documentosRoutes);
 app.use('/api/bitacora', bitacoraRoutes);
+app.use('/api/notificaciones', notificacionesRoutes);
 
 // Ruta inexistente
 app.use((req, res) => {

@@ -4,7 +4,10 @@ const mongoose = require('mongoose');
 const Documento = require('../models/Documento');
 const Version = require('../models/Version');
 const { hashArchivo } = require('../utils/hash.service');
+const { esParticipante, transicionesPara } = require('../utils/acceso');
+const { ESTADOS, TRANSICIONES, ESTADOS_EDITABLES } = require('../config/flujo');
 const { registrarAccion } = require('../services/bitacora.service');
+const { notificarFlujo } = require('../services/notificacion.service');
 const { verificarVersiones, gestionarAlteracion, verificarDocumento } = require('../services/integridad.service');
 
 // ---------- Utilidades ----------
@@ -45,7 +48,42 @@ const idValido = (id) => mongoose.isValidObjectId(id);
 
 const quienHizo = (usuario) => ({ id: String(usuario.id), nombre: usuario.nombreCompleto });
 
-// ---------- CU-08: Registrar documento (incluye CU-09 y CU-19) ----------
+// Carga el documento de la ruta y comprueba que el usuario participe en él.
+// Si no existe o no tiene acceso, responde y devuelve null.
+const cargarDocumentoAccesible = async (req, res) => {
+    if (!idValido(req.params.id)) {
+        res.status(404).json({ mensaje: 'Documento no encontrado.' });
+        return null;
+    }
+    const documento = await Documento.findById(req.params.id);
+    if (!documento) {
+        res.status(404).json({ mensaje: 'Documento no encontrado.' });
+        return null;
+    }
+    if (!esParticipante(req.usuario, documento)) {
+        res.status(403).json({ mensaje: 'No tiene acceso a este documento.' });
+        return null;
+    }
+    return documento;
+};
+
+// Qué acciones de edición están disponibles para el usuario sobre el documento
+const accionesPara = (documento, usuario) => {
+    const editable = !documento.bloqueado && ESTADOS_EDITABLES.includes(documento.estado);
+    return {
+        modificar: editable && usuario.permisos.includes('documentos.modificar'),
+        versionar: editable && usuario.permisos.includes('documentos.versionar')
+    };
+};
+
+// El documento más lo que el usuario puede hacer con él ahora mismo
+const presentar = (documento, usuario) => ({
+    ...documento.toJSON(),
+    transicionesPermitidas: transicionesPara(documento, usuario),
+    acciones: accionesPara(documento, usuario)
+});
+
+// ---------- CU-08: Registrar documento (incluye CU-09, CU-10 y CU-19) ----------
 
 const crearDocumento = async (req, res) => {
     const archivo = req.file;
@@ -133,10 +171,11 @@ const crearDocumento = async (req, res) => {
 
 // ---------- Consultas ----------
 
+// Cada usuario ve únicamente los documentos en los que participa
 const obtenerDocumentos = async (req, res) => {
     try {
         const documentos = await Documento.find().sort({ createdAt: -1 });
-        res.status(200).json(documentos);
+        res.status(200).json(documentos.filter((d) => esParticipante(req.usuario, d)));
     } catch (error) {
         console.error('Error al obtener los documentos:', error);
         res.status(500).json({ mensaje: 'Error interno del servidor.' });
@@ -145,16 +184,175 @@ const obtenerDocumentos = async (req, res) => {
 
 const obtenerDocumento = async (req, res) => {
     try {
-        if (!idValido(req.params.id)) {
-            return res.status(404).json({ mensaje: 'Documento no encontrado.' });
-        }
-        const documento = await Documento.findById(req.params.id);
-        if (!documento) {
-            return res.status(404).json({ mensaje: 'Documento no encontrado.' });
-        }
-        res.json(documento);
+        const documento = await cargarDocumentoAccesible(req, res);
+        if (!documento) return;
+
+        res.json(presentar(documento, req.usuario));
     } catch (error) {
         console.error('Error al obtener el documento:', error);
+        res.status(500).json({ mensaje: 'Error interno del servidor.' });
+    }
+};
+
+// ---------- CU-14: Modificar documento ----------
+// Solo se pueden modificar asunto, tipo y destinatario. Lo anterior queda en la bitácora.
+
+const modificarDocumento = async (req, res) => {
+    try {
+        const documento = await cargarDocumentoAccesible(req, res);
+        if (!documento) return;
+
+        if (documento.bloqueado) {
+            return res.status(423).json({ mensaje: 'El documento está bloqueado por una alerta de alteración.' });
+        }
+        if (!ESTADOS_EDITABLES.includes(documento.estado)) {
+            return res.status(409).json({
+                mensaje: `Un documento en estado "${documento.estado}" no puede modificarse. Debe estar en Generado o Rechazado.`
+            });
+        }
+
+        const cambios = [];
+        const { asunto, tipoDocumento } = req.body || {};
+        const destinatario = leerObjeto(req.body?.destinatario);
+
+        if (asunto !== undefined) {
+            const nuevo = String(asunto).trim();
+            if (!nuevo) {
+                return res.status(400).json({ mensaje: 'El asunto no puede quedar vacío.' });
+            }
+            if (nuevo !== documento.asunto) {
+                cambios.push(`asunto: "${documento.asunto}" → "${nuevo}"`);
+                documento.asunto = nuevo;
+            }
+        }
+
+        if (tipoDocumento !== undefined && tipoDocumento !== documento.tipoDocumento) {
+            cambios.push(`tipo: "${documento.tipoDocumento}" → "${tipoDocumento}"`);
+            documento.tipoDocumento = tipoDocumento;
+        }
+
+        if (destinatario) {
+            if (!personaValida(destinatario)) {
+                return res.status(400).json({ mensaje: 'El destinatario debe tener nombre y departamento.' });
+            }
+            const actual = documento.destinatario;
+            if (destinatario.nombre.trim() !== actual.nombre || destinatario.departamento.trim() !== actual.departamento) {
+                cambios.push(
+                    `destinatario: "${actual.nombre} (${actual.departamento})" → "${destinatario.nombre.trim()} (${destinatario.departamento.trim()})"`
+                );
+                documento.destinatario = {
+                    nombre: destinatario.nombre.trim(),
+                    departamento: destinatario.departamento.trim()
+                };
+            }
+        }
+
+        if (cambios.length === 0) {
+            return res.status(400).json({ mensaje: 'No hay cambios para guardar.' });
+        }
+
+        await documento.save();
+
+        await registrarAccion({
+            accion: 'MODIFICACION_DOCUMENTO',
+            documento: documento._id,
+            codigoTramite: documento.codigoTramite,
+            usuario: req.usuario,
+            detalle: cambios.join(' · ')
+        });
+
+        res.json({ mensaje: 'Documento actualizado. Los datos anteriores quedaron en la trazabilidad.', documento: presentar(documento, req.usuario) });
+
+    } catch (error) {
+        if (error.name === 'ValidationError') {
+            return res.status(400).json({ mensaje: error.message });
+        }
+        console.error('Error al modificar el documento:', error);
+        res.status(500).json({ mensaje: 'Error interno del servidor.' });
+    }
+};
+
+// ---------- CU-22 a CU-25: Cambiar el estado (revisión, aprobación, rechazo y flujo) ----------
+
+const EVENTOS_FLUJO = {
+    'En Revisión': 'ENVIADO_REVISION',
+    'Aprobado': 'APROBADO',
+    'Rechazado': 'RECHAZADO',
+    'Distribuido': 'DISTRIBUIDO',
+    'Archivado': 'ARCHIVADO',
+    'Generado': 'RECUPERADO'
+};
+
+const cambiarEstado = async (req, res) => {
+    try {
+        const documento = await cargarDocumentoAccesible(req, res);
+        if (!documento) return;
+
+        const nuevo = String(req.body?.estado || '');
+        const observacion = String(req.body?.observacion || '').trim();
+
+        if (!ESTADOS.includes(nuevo)) {
+            return res.status(400).json({ mensaje: 'El estado indicado no es válido.' });
+        }
+        if (documento.bloqueado) {
+            return res.status(423).json({ mensaje: 'El documento está bloqueado por una alerta de alteración.' });
+        }
+
+        // A2: el cambio debe corresponder al flujo documental
+        const permisoNecesario = TRANSICIONES[documento.estado]?.[nuevo];
+        if (!permisoNecesario) {
+            return res.status(409).json({
+                mensaje: `El cambio de "${documento.estado}" a "${nuevo}" no corresponde al flujo documental.`
+            });
+        }
+
+        // A1: el usuario debe estar autorizado para ese cambio
+        if (!req.usuario.permisos.includes(permisoNecesario)) {
+            return res.status(403).json({ mensaje: 'No tiene autorización para realizar este cambio de estado.' });
+        }
+
+        // CU-24 A1: el rechazo exige la observación
+        if (nuevo === 'Rechazado' && !observacion) {
+            return res.status(400).json({ mensaje: 'Debe registrar la observación con el motivo del rechazo.' });
+        }
+
+        const anterior = documento.estado;
+        const esDecision = nuevo === 'Aprobado' || nuevo === 'Rechazado';
+
+        documento.estado = nuevo;
+        if (esDecision) {
+            documento.revisiones.push({
+                decision: nuevo,
+                observacion,
+                version: documento.versionActual,
+                por: { id: req.usuario.id, nombre: req.usuario.nombreCompleto, rol: req.usuario.rol },
+                fecha: new Date()
+            });
+        }
+        await documento.save();
+
+        let accion = 'CAMBIO_ESTADO';
+        if (nuevo === 'Aprobado') accion = 'REVISION_APROBADA';
+        if (nuevo === 'Rechazado') accion = 'REVISION_RECHAZADA';
+
+        await registrarAccion({
+            accion,
+            documento: documento._id,
+            codigoTramite: documento.codigoTramite,
+            usuario: req.usuario,
+            detalle: `${anterior} → ${nuevo}${esDecision && observacion ? ` · Observación: ${observacion}` : ''}`
+        });
+
+        try {
+            await notificarFlujo({ evento: EVENTOS_FLUJO[nuevo], documento, actor: req.usuario, observacion });
+        } catch (error) {
+            console.error('Error al notificar el cambio de estado:', error.message);
+        }
+
+        res.json({ mensaje: `Estado actualizado a "${nuevo}".`, documento: presentar(documento, req.usuario) });
+
+    } catch (error) {
+        console.error('Error al cambiar el estado:', error);
         res.status(500).json({ mensaje: 'Error interno del servidor.' });
     }
 };
@@ -163,13 +361,8 @@ const obtenerDocumento = async (req, res) => {
 
 const listarVersiones = async (req, res) => {
     try {
-        if (!idValido(req.params.id)) {
-            return res.status(404).json({ mensaje: 'Documento no encontrado.' });
-        }
-        const documento = await Documento.findById(req.params.id);
-        if (!documento) {
-            return res.status(404).json({ mensaje: 'Documento no encontrado.' });
-        }
+        const documento = await cargarDocumentoAccesible(req, res);
+        if (!documento) return;
 
         const versiones = await Version.find({ documento: documento._id }).sort({ numero: -1 }).lean();
 
@@ -199,19 +392,22 @@ const crearVersion = async (req, res) => {
         if (!archivo) {
             return res.status(400).json({ mensaje: 'Debe adjuntar el archivo PDF de la nueva versión.' });
         }
-        if (!idValido(req.params.id)) {
-            borrarArchivo(archivo.path);
-            return res.status(404).json({ mensaje: 'Documento no encontrado.' });
-        }
 
-        const documento = await Documento.findById(req.params.id);
+        const documento = await cargarDocumentoAccesible(req, res);
         if (!documento) {
             borrarArchivo(archivo.path);
-            return res.status(404).json({ mensaje: 'Documento no encontrado.' });
+            return;
         }
+
         if (documento.bloqueado) {
             borrarArchivo(archivo.path);
             return res.status(423).json({ mensaje: 'El documento está bloqueado por una alerta de alteración. No admite nuevas versiones.' });
+        }
+        if (!ESTADOS_EDITABLES.includes(documento.estado)) {
+            borrarArchivo(archivo.path);
+            return res.status(409).json({
+                mensaje: `Un documento en estado "${documento.estado}" no admite nuevas versiones. Debe estar en Generado o Rechazado.`
+            });
         }
         if (!(await esPdfReal(archivo.path))) {
             borrarArchivo(archivo.path);
@@ -247,7 +443,7 @@ const crearVersion = async (req, res) => {
 
         res.status(201).json({
             mensaje: `Versión ${numero} registrada con su hash SHA-256.`,
-            documento
+            documento: presentar(documento, req.usuario)
         });
 
     } catch (error) {
@@ -266,17 +462,10 @@ const crearVersion = async (req, res) => {
 
 const descargarVersion = async (req, res) => {
     try {
-        const { id, numero } = req.params;
-        if (!idValido(id)) {
-            return res.status(404).json({ mensaje: 'Documento no encontrado.' });
-        }
+        const documento = await cargarDocumentoAccesible(req, res);
+        if (!documento) return;
 
-        const documento = await Documento.findById(id);
-        if (!documento) {
-            return res.status(404).json({ mensaje: 'Documento no encontrado.' });
-        }
-
-        const version = await Version.findOne({ documento: documento._id, numero: Number(numero) });
+        const version = await Version.findOne({ documento: documento._id, numero: Number(req.params.numero) });
         if (!version) {
             return res.status(404).json({ mensaje: 'Versión no encontrada.' });
         }
@@ -326,13 +515,8 @@ const descargarVersion = async (req, res) => {
 
 const verificarIntegridad = async (req, res) => {
     try {
-        if (!idValido(req.params.id)) {
-            return res.status(404).json({ mensaje: 'Documento no encontrado.' });
-        }
-        const documento = await Documento.findById(req.params.id);
-        if (!documento) {
-            return res.status(404).json({ mensaje: 'Documento no encontrado.' });
-        }
+        const documento = await cargarDocumentoAccesible(req, res);
+        if (!documento) return;
 
         const resultado = await verificarDocumento(documento, req.usuario);
 
@@ -372,14 +556,10 @@ const desbloquearDocumento = async (req, res) => {
         if (!motivo) {
             return res.status(400).json({ mensaje: 'Debe indicar el motivo del desbloqueo.' });
         }
-        if (!idValido(req.params.id)) {
-            return res.status(404).json({ mensaje: 'Documento no encontrado.' });
-        }
 
-        const documento = await Documento.findById(req.params.id);
-        if (!documento) {
-            return res.status(404).json({ mensaje: 'Documento no encontrado.' });
-        }
+        const documento = await cargarDocumentoAccesible(req, res);
+        if (!documento) return;
+
         if (!documento.bloqueado) {
             return res.status(400).json({ mensaje: 'El documento no está bloqueado.' });
         }
@@ -406,7 +586,7 @@ const desbloquearDocumento = async (req, res) => {
             detalle: `Motivo: ${motivo}`
         });
 
-        res.json({ mensaje: 'Documento desbloqueado.', documento });
+        res.json({ mensaje: 'Documento desbloqueado.', documento: presentar(documento, req.usuario) });
 
     } catch (error) {
         console.error('Error al desbloquear:', error);
@@ -418,6 +598,8 @@ module.exports = {
     crearDocumento,
     obtenerDocumentos,
     obtenerDocumento,
+    modificarDocumento,
+    cambiarEstado,
     listarVersiones,
     crearVersion,
     descargarVersion,

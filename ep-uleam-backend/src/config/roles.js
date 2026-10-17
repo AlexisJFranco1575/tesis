@@ -8,6 +8,10 @@ const PERMISOS = {
     'documentos.consultar': 'Consultar y buscar documentos',
     'documentos.descargar': 'Ver y descargar archivos',
     'documentos.versionar': 'Crear nuevas versiones',
+    'documentos.modificar': 'Modificar los datos de un documento',
+    'documentos.estado': 'Gestionar el estado del documento',
+    'documentos.aprobar': 'Revisar, aprobar o rechazar documentos',
+    'documentos.verTodos': 'Acceder a todos los documentos de la institución',
     'integridad.verificar': 'Verificar la integridad (SHA-256)',
     'integridad.desbloquear': 'Desbloquear documentos alterados',
     'bitacora.consultar': 'Consultar la bitácora y la trazabilidad',
@@ -19,11 +23,14 @@ const PERMISOS = {
 
 const TODOS_LOS_PERMISOS = Object.keys(PERMISOS);
 
-const PERMISOS_USUARIO = [
+// Lo que puede hacer quien participa en un documento (no incluye ver los de otras áreas)
+const PERMISOS_PARTICIPANTE = [
     'documentos.registrar',
     'documentos.consultar',
     'documentos.descargar',
-    'documentos.versionar'
+    'documentos.versionar',
+    'documentos.modificar',
+    'documentos.estado'
 ];
 
 // Permisos que trae cada rol por defecto
@@ -32,6 +39,8 @@ const PERMISOS_POR_ROL = {
     'Gerencia': [
         'documentos.consultar',
         'documentos.descargar',
+        'documentos.aprobar',
+        'documentos.verTodos',
         'integridad.verificar',
         'integridad.desbloquear',
         'bitacora.consultar',
@@ -46,8 +55,8 @@ const PERMISOS_POR_ROL = {
         'roles.gestionar',
         'permisos.gestionar'
     ],
-    'Secretaría': PERMISOS_USUARIO,
-    'Usuario institucional': PERMISOS_USUARIO
+    'Secretaría': [...PERMISOS_PARTICIPANTE, 'documentos.verTodos'],
+    'Usuario institucional': PERMISOS_PARTICIPANTE
 };
 
 // Permisos del rol + permisos agregados - permisos retirados.

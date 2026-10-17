@@ -6,6 +6,8 @@ const {
     crearDocumento,
     obtenerDocumentos,
     obtenerDocumento,
+    modificarDocumento,
+    cambiarEstado,
     listarVersiones,
     crearVersion,
     descargarVersion,
@@ -19,6 +21,10 @@ router.use(verificarToken);
 router.post('/', requierePermiso('documentos.registrar'), upload.single('archivo'), crearDocumento);
 router.get('/', requierePermiso('documentos.consultar'), obtenerDocumentos);
 router.get('/:id', requierePermiso('documentos.consultar'), obtenerDocumento);
+router.patch('/:id', requierePermiso('documentos.modificar'), modificarDocumento);
+
+// Flujo documental: el controlador comprueba el permiso exacto de cada cambio de estado
+router.post('/:id/estado', requierePermiso('documentos.estado', 'documentos.aprobar'), cambiarEstado);
 
 // Versiones
 router.get('/:id/versiones', requierePermiso('documentos.consultar'), listarVersiones);

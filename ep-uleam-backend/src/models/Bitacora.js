@@ -3,9 +3,15 @@ const mongoose = require('mongoose');
 const ACCIONES = [
     // Documentos
     'REGISTRO_DOCUMENTO',
+    'MODIFICACION_DOCUMENTO',
     'NUEVA_VERSION',
     'CONSULTA_DOCUMENTO',
     'DESCARGA_DOCUMENTO',
+    // Flujo documental
+    'CAMBIO_ESTADO',
+    'REVISION_APROBADA',
+    'REVISION_RECHAZADA',
+    // Integridad
     'VERIFICACION_INTEGRIDAD',
     'ALERTA_ALTERACION',
     'DESBLOQUEO',
