@@ -2,42 +2,73 @@
   <div class="auth-card">
     <div class="brand-section">
       <img class="logo" src="logo-ep-uleam.png" alt="EP-ULEAM, Empresa Pública de Producción y Desarrollo Estratégico">
-      <h2>Acceso al Sistema</h2>
+      <h2>{{ modo() === 'ingreso' ? 'Acceso al Sistema' : 'Recuperar contraseña' }}</h2>
       <p>Gestión Documental con Trazabilidad Hash</p>
     </div>
 
-    <form class="auth-form" (ngSubmit)="iniciarSesion()">
+    @if (aviso()) {
+      <div class="aviso-info">{{ aviso() }}</div>
+    }
 
-      @if (mensajeError()) {
-        <div class="error-alert">{{ mensajeError() }}</div>
-      }
+    @if (modo() === 'ingreso') {
+      <form class="auth-form" (ngSubmit)="iniciarSesion()">
 
-      <div class="input-group">
-        <label>Correo Electrónico</label>
-        <div class="input-wrapper">
-          <span class="icon">✉</span>
-          <input type="email" name="email" [(ngModel)]="credenciales.email" placeholder="usuario@uleam.edu.ec" autocomplete="username" required>
+        @if (mensajeError()) {
+          <div class="error-alert">{{ mensajeError() }}</div>
+        }
+
+        <div class="input-group">
+          <label>Correo Electrónico</label>
+          <div class="input-wrapper">
+            <span class="icon">✉</span>
+            <input type="email" name="email" [(ngModel)]="credenciales.email" placeholder="usuario@uleam.edu.ec" autocomplete="username" required>
+          </div>
         </div>
-      </div>
 
-      <div class="input-group">
-        <label>Contraseña</label>
-        <div class="input-wrapper">
-          <span class="icon">🔒</span>
-          <input type="password" name="password" [(ngModel)]="credenciales.password" placeholder="••••••••" autocomplete="current-password" required>
+        <div class="input-group">
+          <label>Contraseña</label>
+          <div class="input-wrapper">
+            <span class="icon">🔒</span>
+            <input type="password" name="password" [(ngModel)]="credenciales.password" placeholder="••••••••" autocomplete="current-password" required>
+          </div>
         </div>
-      </div>
 
-      <div class="form-actions">
-        <label class="remember-me">
-          <input type="checkbox"> Recordarme
-        </label>
-        <a href="#" class="forgot-pwd">¿Olvidó su contraseña?</a>
-      </div>
+        <div class="form-actions">
+          <button type="button" class="link-boton" (click)="irARecuperar()">¿Olvidó su contraseña?</button>
+        </div>
 
-      <button type="submit" class="btn-login" [disabled]="cargando()">
-        {{ cargando() ? 'Ingresando...' : 'Iniciar Sesión' }}
-      </button>
-    </form>
+        <button type="submit" class="btn-login" [disabled]="cargando()">
+          {{ cargando() ? 'Ingresando...' : 'Iniciar Sesión' }}
+        </button>
+      </form>
+    } @else {
+      <form class="auth-form" (ngSubmit)="solicitarRecuperacion()">
+
+        @if (mensajeError()) {
+          <div class="error-alert">{{ mensajeError() }}</div>
+        }
+        @if (mensajeExito()) {
+          <div class="exito-alert">{{ mensajeExito() }}</div>
+        }
+
+        <p class="ayuda">Ingrese su correo institucional. Gerencia y TIC recibirán su solicitud y le entregarán una clave temporal.</p>
+
+        <div class="input-group">
+          <label>Correo Electrónico</label>
+          <div class="input-wrapper">
+            <span class="icon">✉</span>
+            <input type="email" name="emailRecuperacion" [(ngModel)]="emailRecuperacion" placeholder="usuario@uleam.edu.ec" required>
+          </div>
+        </div>
+
+        <button type="submit" class="btn-login" [disabled]="cargando()">
+          {{ cargando() ? 'Enviando...' : 'Enviar solicitud' }}
+        </button>
+
+        <div class="pie-enlaces">
+          <button type="button" class="link-boton" (click)="volverAlIngreso()">← Volver al inicio de sesión</button>
+        </div>
+      </form>
+    }
   </div>
 </div>

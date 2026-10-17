@@ -28,7 +28,13 @@ export class DetalleDocumentoComponent implements OnInit {
   private servicio = inject(DocumentoService);
   private auth = inject(AuthService);
 
-  readonly esControl = this.auth.esControl();
+  // Qué botones se muestran según los permisos del usuario (el backend los exige igualmente)
+  readonly puedeVersionar = this.auth.tienePermiso('documentos.versionar');
+  readonly puedeDescargar = this.auth.tienePermiso('documentos.descargar');
+  readonly puedeVerificar = this.auth.tienePermiso('integridad.verificar');
+  readonly puedeDesbloquear = this.auth.tienePermiso('integridad.desbloquear');
+  readonly puedeTrazabilidad = this.auth.tienePermiso('bitacora.consultar');
+
   readonly etiqueta = etiquetaAccion;
   readonly clase = claseAccion;
 
@@ -63,7 +69,7 @@ export class DetalleDocumentoComponent implements OnInit {
     this.cargar();
   }
 
-  // Carga el documento, sus versiones y (si el rol lo permite) su trazabilidad.
+  // Carga el documento, sus versiones y (si el usuario puede) su trazabilidad.
   // Con mostrarCarga = false se refresca sin parpadeo.
   cargar(mostrarCarga = true): void {
     if (mostrarCarga) {
@@ -89,7 +95,7 @@ export class DetalleDocumentoComponent implements OnInit {
   }
 
   cargarTrazabilidad(): void {
-    if (!this.esControl) {
+    if (!this.puedeTrazabilidad) {
       return;
     }
     this.servicio.listarBitacora({ documento: this.id, limite: 100 }).subscribe({

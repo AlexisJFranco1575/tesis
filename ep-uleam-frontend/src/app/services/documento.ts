@@ -63,7 +63,19 @@ export type AccionBitacora =
   | 'VERIFICACION_INTEGRIDAD'
   | 'ALERTA_ALTERACION'
   | 'DESBLOQUEO'
-  | 'AUDITORIA_GENERAL';
+  | 'AUDITORIA_GENERAL'
+  | 'INICIO_SESION'
+  | 'LOGIN_FALLIDO'
+  | 'CUENTA_BLOQUEADA'
+  | 'CIERRE_SESION'
+  | 'CAMBIO_PASSWORD'
+  | 'SOLICITUD_RECUPERACION'
+  | 'CLAVE_TEMPORAL'
+  | 'USUARIO_REGISTRADO'
+  | 'USUARIO_BAJA'
+  | 'USUARIO_REACTIVADO'
+  | 'ROLES_MODIFICADOS'
+  | 'PERMISOS_MODIFICADOS';
 
 export interface EntradaBitacora {
   _id: string;
@@ -101,18 +113,30 @@ const ETIQUETAS_ACCION: Record<string, string> = {
   DESCARGA_DOCUMENTO: 'Descarga del documento',
   VERIFICACION_INTEGRIDAD: 'Verificación de integridad',
   ALERTA_ALTERACION: 'Alerta de alteración',
-  DESBLOQUEO: 'Desbloqueo',
+  DESBLOQUEO: 'Desbloqueo de documento',
   AUDITORIA_GENERAL: 'Auditoría general',
+  INICIO_SESION: 'Inicio de sesión',
+  LOGIN_FALLIDO: 'Intento de acceso fallido',
+  CUENTA_BLOQUEADA: 'Cuenta bloqueada',
+  CIERRE_SESION: 'Cierre de sesión',
+  CAMBIO_PASSWORD: 'Cambio de contraseña',
+  SOLICITUD_RECUPERACION: 'Solicitud de recuperación',
+  CLAVE_TEMPORAL: 'Clave temporal generada',
+  USUARIO_REGISTRADO: 'Usuario registrado',
+  USUARIO_BAJA: 'Usuario dado de baja',
+  USUARIO_REACTIVADO: 'Usuario reactivado',
+  ROLES_MODIFICADOS: 'Roles modificados',
+  PERMISOS_MODIFICADOS: 'Permisos modificados',
 };
 
 export const etiquetaAccion = (accion: string): string => ETIQUETAS_ACCION[accion] ?? accion;
 
-// Color de la insignia: rojo = alerta, verde = comprobación correcta, azul = el resto
+// Color de la insignia: rojo = alerta, verde = comprobación o restablecimiento, azul = el resto
 export const claseAccion = (accion: string): string => {
-  if (accion === 'ALERTA_ALTERACION') {
+  if (['ALERTA_ALTERACION', 'CUENTA_BLOQUEADA', 'LOGIN_FALLIDO', 'USUARIO_BAJA'].includes(accion)) {
     return 'alerta';
   }
-  if (accion === 'VERIFICACION_INTEGRIDAD' || accion === 'DESBLOQUEO') {
+  if (['VERIFICACION_INTEGRIDAD', 'DESBLOQUEO', 'USUARIO_REACTIVADO'].includes(accion)) {
     return 'ok';
   }
   return 'neutra';

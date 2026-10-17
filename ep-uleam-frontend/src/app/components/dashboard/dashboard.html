@@ -5,16 +5,26 @@
       <img src="logo-ep-uleam.png" alt="EP-ULEAM">
     </div>
     <nav class="nav-menu">
-      <a routerLink="/dashboard/documentos" class="nav-item" routerLinkActive="active">
-        <span class="icon">📄</span> Documentos
-      </a>
-      @if (esControl) {
+      @if (verDocumentos()) {
+        <a routerLink="/dashboard/documentos" class="nav-item" routerLinkActive="active">
+          <span class="icon">📄</span> Documentos
+        </a>
+      }
+      @if (verUsuarios()) {
+        <a routerLink="/dashboard/usuarios" class="nav-item" routerLinkActive="active">
+          <span class="icon">👥</span> Usuarios
+        </a>
+      }
+      @if (verBitacora()) {
         <a routerLink="/dashboard/auditoria" class="nav-item" routerLinkActive="active">
           <span class="icon">🛡️</span> Bitácora y Auditoría
         </a>
       }
     </nav>
     <div class="sidebar-footer">
+      <a routerLink="/cambiar-password" class="nav-item">
+        <span class="icon">🔑</span> Cambiar contraseña
+      </a>
       <a href="javascript:void(0)" class="nav-item logout" (click)="cerrarSesion()">
         <span class="icon">🚪</span> Cerrar Sesión
       </a>
@@ -27,20 +37,31 @@
       <div class="search-bar">
         <input type="text" placeholder="Buscar documento por código o hash...">
       </div>
-      @if (usuarioActual) {
+      @if (usuarioActual(); as u) {
         <div class="user-info">
           <div class="text-info">
-            <strong>{{ usuarioActual.rol }} {{ usuarioActual.departamento }}</strong>
-            <span>{{ usuarioActual.nombreCompleto }}</span>
+            <strong>{{ u.rol }} · {{ u.departamento }}</strong>
+            <span>{{ u.nombreCompleto }}</span>
           </div>
-          <div class="avatar">{{ iniciales }}</div>
+          <div class="avatar">{{ iniciales() }}</div>
         </div>
       }
     </header>
 
-    <!-- Aquí se cargan las pantallas hijas (documentos, detalle, bitácora) -->
+    <!-- Aquí se cargan las pantallas hijas (documentos, detalle, usuarios, bitácora) -->
     <div class="content-area">
       <router-outlet></router-outlet>
     </div>
   </main>
 </div>
+
+<!-- Aviso de cierre por inactividad -->
+@if (inactividad.advertencia()) {
+  <div class="aviso-fondo">
+    <div class="aviso-caja">
+      <h3>¿Sigue ahí?</h3>
+      <p>Por inactividad, su sesión se cerrará en <strong>{{ inactividad.segundosRestantes() }}</strong> segundos.</p>
+      <button type="button" class="btn-continuar" (click)="continuarSesion()">Seguir conectado</button>
+    </div>
+  </div>
+}

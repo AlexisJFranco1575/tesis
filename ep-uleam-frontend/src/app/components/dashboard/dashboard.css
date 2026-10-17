@@ -15,19 +15,8 @@
   flex-direction: column;
 }
 
-.sidebar-header {
-  padding: 18px 16px;
-  background: #fff;
-  border-bottom: 4px solid var(--ep-cian);
-}
-
-.sidebar-header img {
-  display: block;
-  width: 100%;
-  max-width: 200px;
-  height: auto;
-  margin: 0 auto;
-}
+.sidebar-header { padding: 18px 16px; background: #fff; border-bottom: 4px solid var(--ep-cian); }
+.sidebar-header img { display: block; width: 100%; max-width: 200px; height: auto; margin: 0 auto; }
 
 .nav-menu { flex: 1; padding: 20px 0; }
 
@@ -41,9 +30,7 @@
   border-left: 4px solid transparent;
   transition: all 0.25s;
 }
-
 .nav-item .icon { margin-right: 12px; font-size: 18px; }
-
 .nav-item:hover,
 .nav-item.active {
   background: rgba(255, 255, 255, 0.12);
@@ -51,7 +38,7 @@
   border-left-color: var(--ep-cian);
 }
 
-.sidebar-footer { padding: 20px 0; border-top: 1px solid rgba(255, 255, 255, 0.18); }
+.sidebar-footer { padding: 14px 0; border-top: 1px solid rgba(255, 255, 255, 0.18); }
 .logout { color: #ffc9c9; }
 .logout:hover { color: #fff; background: rgba(183, 28, 28, 0.5); border-left-color: transparent; }
 
@@ -76,11 +63,7 @@
   outline: none;
   transition: all 0.3s;
 }
-
-.search-bar input:focus {
-  border-color: var(--ep-azul-claro);
-  box-shadow: 0 0 0 3px rgba(70, 164, 255, 0.2);
-}
+.search-bar input:focus { border-color: var(--ep-azul-claro); box-shadow: 0 0 0 3px rgba(70, 164, 255, 0.2); }
 
 .user-info { display: flex; align-items: center; gap: 15px; }
 .text-info { display: flex; flex-direction: column; text-align: right; }
@@ -100,20 +83,42 @@
 }
 
 .content-area { padding: 30px; overflow-y: auto; }
-.page-title { margin: 0 0 25px; font-size: 22px; color: var(--ep-azul-profundo); }
 
-/* ===== Tarjetas de estadísticas (para el panel de control futuro) ===== */
-.stats-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
-.card.stat {
-  background: #fff;
-  padding: 25px;
-  border-radius: 10px;
-  box-shadow: 0 4px 6px rgba(0, 69, 153, 0.04);
-  border-left: 5px solid;
+/* ===== Aviso de inactividad ===== */
+.aviso-fondo {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 40, 85, 0.65);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+  padding: 20px;
 }
-.card.stat.blue { border-left-color: var(--ep-azul-claro); }
-.card.stat.green { border-left-color: #38a169; }
-.card.stat.red { border-left-color: var(--ep-rojo); }
-.stat-info { display: flex; flex-direction: column; }
-.stat-info .label { font-size: 13px; color: var(--ep-texto-suave); text-transform: uppercase; font-weight: 600; margin-bottom: 5px; }
-.stat-info .number { font-size: 28px; font-weight: 800; color: var(--ep-texto); }
+
+.aviso-caja {
+  background: #fff;
+  border-radius: 12px;
+  border-top: 4px solid var(--ep-rojo);
+  max-width: 400px;
+  width: 100%;
+  padding: 28px;
+  text-align: center;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.35);
+}
+.aviso-caja h3 { margin: 0 0 10px; color: var(--ep-azul-profundo); font-size: 20px; }
+.aviso-caja p { margin: 0 0 22px; color: var(--ep-texto-suave); font-size: 14px; line-height: 1.5; }
+.aviso-caja strong { color: var(--ep-rojo); font-size: 18px; }
+
+.btn-continuar {
+  background: var(--ep-azul-medio);
+  color: #fff;
+  border: none;
+  padding: 12px 26px;
+  border-radius: 6px;
+  font-weight: 700;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background 0.3s;
+}
+.btn-continuar:hover { background: var(--ep-azul-profundo); }

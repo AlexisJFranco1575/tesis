@@ -14,8 +14,12 @@ describe('DashboardComponent', () => {
       JSON.stringify({
         id: '1',
         nombreCompleto: 'Alexis Franco',
-        rol: 'Administrador',
+        email: 'alexis@uleam.edu.ec',
         departamento: 'TIC',
+        roles: ['TIC'],
+        rol: 'TIC',
+        permisos: ['documentos.consultar', 'usuarios.gestionar'],
+        debeCambiarPassword: false,
       })
     );
 
@@ -29,13 +33,22 @@ describe('DashboardComponent', () => {
     fixture.detectChanges();
   });
 
-  afterEach(() => localStorage.clear());
+  afterEach(() => {
+    fixture.destroy(); // detiene el control de inactividad
+    localStorage.clear();
+  });
 
   it('debería crearse', () => {
     expect(component).toBeTruthy();
   });
 
   it('calcula las iniciales del usuario', () => {
-    expect(component.iniciales).toBe('AF');
+    expect(component.iniciales()).toBe('AF');
+  });
+
+  it('muestra solo las opciones del menú permitidas por los permisos', () => {
+    expect(component.verDocumentos()).toBe(true);
+    expect(component.verUsuarios()).toBe(true);
+    expect(component.verBitacora()).toBe(false);
   });
 });

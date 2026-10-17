@@ -17,6 +17,8 @@ export class ListaDocumentosComponent implements OnInit {
   private auth = inject(AuthService);
   private router = inject(Router);
 
+  readonly puedeRegistrar = this.auth.tienePermiso('documentos.registrar');
+
   readonly tipos = ['Oficio', 'Memorando', 'Resolución', 'Informe Técnico', 'Contrato'];
   readonly estados: EstadoDocumento[] = ['Generado', 'En Revisión', 'Aprobado', 'Archivado'];
 

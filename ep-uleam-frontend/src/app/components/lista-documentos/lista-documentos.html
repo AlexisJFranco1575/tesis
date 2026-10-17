@@ -4,7 +4,9 @@
       <h2>Repositorio Institucional</h2>
       <p>Gestión centralizada de la documentación de la EP-ULEAM</p>
     </div>
-    <button class="btn-new" type="button" (click)="abrirModal()">+ Cargar Documento</button>
+    @if (puedeRegistrar) {
+      <button class="btn-new" type="button" (click)="abrirModal()">+ Cargar Documento</button>
+    }
   </div>
 
   <div class="filters-bar">
@@ -30,7 +32,12 @@
     } @else if (errorCarga()) {
       <div class="estado-vacio estado-error">{{ errorCarga() }}</div>
     } @else if (documentosFiltrados().length === 0) {
-      <div class="estado-vacio">No hay documentos que coincidan. Use "+ Cargar Documento" para registrar el primero.</div>
+      <div class="estado-vacio">
+        No hay documentos que coincidan.
+        @if (puedeRegistrar) {
+          Use "+ Cargar Documento" para registrar el primero.
+        }
+      </div>
     } @else {
       <table class="modern-table">
         <thead>

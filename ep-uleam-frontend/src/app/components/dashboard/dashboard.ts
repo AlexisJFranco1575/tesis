@@ -1,6 +1,7 @@
-import { Component, OnInit, inject } from '@angular/core';
+import { Component, OnDestroy, OnInit, computed, inject, signal } from '@angular/core';
 import { Router, RouterModule } from '@angular/router';
 import { AuthService, UsuarioSesion } from '../../services/auth';
+import { InactividadService } from '../../services/inactividad';
 
 @Component({
   selector: 'app-dashboard',
@@ -9,27 +10,47 @@ import { AuthService, UsuarioSesion } from '../../services/auth';
   templateUrl: './dashboard.html',
   styleUrls: ['./dashboard.css']
 })
-export class DashboardComponent implements OnInit {
+export class DashboardComponent implements OnInit, OnDestroy {
   private auth = inject(AuthService);
   private router = inject(Router);
+  readonly inactividad = inject(InactividadService);
 
-  usuarioActual: UsuarioSesion | null = null;
-  iniciales = 'U';
-  esControl = false;
+  usuarioActual = signal<UsuarioSesion | null>(null);
+
+  iniciales = computed(() => {
+    const partes = (this.usuarioActual()?.nombreCompleto ?? '').split(' ').filter(Boolean);
+    return ((partes[0]?.[0] ?? '') + (partes[1]?.[0] ?? '')).toUpperCase() || 'U';
+  });
+
+  // Opciones del menú según los permisos del usuario
+  private permisos = computed(() => this.usuarioActual()?.permisos ?? []);
+  verDocumentos = computed(() => this.permisos().includes('documentos.consultar'));
+  verUsuarios = computed(() =>
+    ['usuarios.gestionar', 'roles.gestionar', 'permisos.gestionar'].some((p) => this.permisos().includes(p))
+  );
+  verBitacora = computed(() => this.permisos().includes('bitacora.consultar'));
 
   ngOnInit(): void {
-    this.usuarioActual = this.auth.getUsuario();
-    this.esControl = this.auth.esControl();
+    this.usuarioActual.set(this.auth.getUsuario());
+    this.inactividad.iniciar();
 
-    if (this.usuarioActual?.nombreCompleto) {
-      const partes = this.usuarioActual.nombreCompleto.split(' ').filter(Boolean);
-      this.iniciales = (partes[0]?.[0] ?? '') + (partes[1]?.[0] ?? '');
-      this.iniciales = this.iniciales.toUpperCase() || 'U';
-    }
+    // Actualiza roles y permisos por si cambiaron desde el último inicio de sesión
+    this.auth.refrescarPerfil().subscribe({
+      next: (usuario) => this.usuarioActual.set(usuario),
+      error: () => {} // un 401 lo atiende el interceptor
+    });
+  }
+
+  ngOnDestroy(): void {
+    this.inactividad.detener();
+  }
+
+  continuarSesion(): void {
+    this.inactividad.continuar();
   }
 
   cerrarSesion(): void {
-    this.auth.logout();
-    this.router.navigate(['/login']);
+    this.inactividad.detener();
+    this.auth.cerrarSesion().subscribe(() => this.router.navigate(['/login']));
   }
 }

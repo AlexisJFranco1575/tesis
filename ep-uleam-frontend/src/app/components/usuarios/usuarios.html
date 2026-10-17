@@ -1,0 +1,372 @@
+<div class="module-container">
+  <div class="module-header">
+    <div class="title-section">
+      <h2>Gestión de usuarios</h2>
+      <p>Cuentas, roles y permisos del sistema</p>
+    </div>
+    @if (puedeGestionar) {
+      <button class="btn-new" type="button" (click)="abrirRegistro()">+ Registrar usuario</button>
+    }
+  </div>
+
+  @if (aviso(); as a) {
+    <div class="aviso" [class.ok]="a.tipo === 'ok'" [class.error]="a.tipo === 'error'">{{ a.texto }}</div>
+  }
+
+  @if (solicitudesPendientes() > 0) {
+    <div class="banner-solicitudes">
+      <span>🔔 Hay <strong>{{ solicitudesPendientes() }}</strong> solicitud(es) de recuperación de contraseña pendiente(s).</span>
+      @if (filtroEstado() !== 'solicitudes') {
+        <button type="button" class="btn-secundario" (click)="filtroEstado.set('solicitudes')">Ver solicitudes</button>
+      }
+    </div>
+  }
+
+  <div class="filters-bar">
+    <input type="text" class="search-input" [(ngModel)]="textoBusqueda"
+           placeholder="🔍 Buscar por nombre, cédula, correo o departamento...">
+    <select class="filter-select" [(ngModel)]="filtroEstado">
+      <option value="">Estado: Todos</option>
+      <option value="activos">Activos</option>
+      <option value="bloqueados">Bloqueados</option>
+      <option value="inactivos">Inactivos (de baja)</option>
+      <option value="solicitudes">Con solicitud de recuperación</option>
+    </select>
+  </div>
+
+  <div class="table-wrapper">
+    @if (cargando()) {
+      <div class="estado-vacio">Cargando usuarios...</div>
+    } @else if (errorCarga()) {
+      <div class="estado-vacio estado-error">{{ errorCarga() }}</div>
+    } @else if (usuariosFiltrados().length === 0) {
+      <div class="estado-vacio">No hay usuarios que coincidan.</div>
+    } @else {
+      <div class="tabla-scroll">
+        <table class="modern-table">
+          <thead>
+            <tr>
+              <th>Usuario</th>
+              <th>Correo</th>
+              <th>Departamento</th>
+              <th>Roles</th>
+              <th>Estado</th>
+              <th>Último acceso</th>
+              <th>Acciones</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (u of usuariosFiltrados(); track u._id) {
+              <tr [class.fila-inactiva]="!u.estado">
+                <td>
+                  <strong>{{ u.nombres }} {{ u.apellidos }}</strong><br>
+                  <span class="sub">CI {{ u.cedula }}</span>
+                </td>
+                <td>{{ u.email }}</td>
+                <td>{{ u.departamento }}</td>
+                <td>
+                  @for (r of u.roles; track r) {
+                    <span class="insignia rol">{{ r }}</span>
+                  }
+                </td>
+                <td>
+                  @if (!u.estado) {
+                    <span class="insignia neutra">Inactivo</span>
+                  } @else if (u.bloqueado) {
+                    <span class="insignia alerta">Bloqueado</span>
+                  } @else {
+                    <span class="insignia ok">Activo</span>
+                  }
+                  @if (u.estado && u.debeCambiarPassword) {
+                    <span class="insignia aviso-ambar">Clave temporal</span>
+                  }
+                  @if (u.estado && u.solicitoRecuperacion) {
+                    <span class="insignia info">Pide recuperación</span>
+                  }
+                </td>
+                <td class="nowrap">
+                  @if (u.ultimoAcceso) {
+                    {{ u.ultimoAcceso | date: 'dd MMM yyyy, HH:mm' }}
+                  } @else {
+                    Nunca
+                  }
+                </td>
+                <td class="celda-acciones">
+                  @if (esAdministrable(u)) {
+                    @if (u.estado) {
+                      @if (puedeGestionar) {
+                        <button class="btn-icon" type="button" title="Generar clave temporal" (click)="abrirClave(u)">🔑</button>
+                      }
+                      @if (puedeRoles) {
+                        <button class="btn-icon" type="button" title="Roles" (click)="abrirRoles(u)">👥</button>
+                      }
+                      @if (puedePermisos) {
+                        <button class="btn-icon" type="button" title="Permisos" (click)="abrirPermisos(u)">🛡️</button>
+                      }
+                      @if (puedeGestionar) {
+                        <button class="btn-icon" type="button" title="Dar de baja" (click)="abrirBaja(u)">⛔</button>
+                      }
+                    } @else if (puedeGestionar) {
+                      <button class="btn-icon" type="button" title="Reactivar" (click)="abrirReactivar(u)">↺</button>
+                    }
+                  }
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  </div>
+</div>
+
+<!-- Ventana: registrar usuario -->
+@if (modal() === 'registrar') {
+  <div class="modal-fondo" (click)="cerrarModal()">
+    <div class="modal modal-ancho" (click)="$event.stopPropagation()">
+      <div class="modal-encabezado">
+        <h3>Registrar usuario</h3>
+        <button class="btn-cerrar" type="button" (click)="cerrarModal()">✕</button>
+      </div>
+
+      <form class="modal-cuerpo grid-2" (ngSubmit)="guardarRegistro()">
+        <div class="campo">
+          <label>Cédula</label>
+          <input type="text" name="cedula" [(ngModel)]="formulario.cedula" maxlength="10" placeholder="10 dígitos">
+        </div>
+        <div class="campo">
+          <label>Correo institucional</label>
+          <input type="email" name="email" [(ngModel)]="formulario.email" placeholder="usuario@uleam.edu.ec">
+        </div>
+        <div class="campo">
+          <label>Nombres</label>
+          <input type="text" name="nombres" [(ngModel)]="formulario.nombres">
+        </div>
+        <div class="campo">
+          <label>Apellidos</label>
+          <input type="text" name="apellidos" [(ngModel)]="formulario.apellidos">
+        </div>
+        <div class="campo completo">
+          <label>Departamento</label>
+          <input type="text" name="departamento" [(ngModel)]="formulario.departamento" placeholder="Ej. Secretaría General">
+        </div>
+
+        <div class="campo completo">
+          <label>Roles</label>
+          <div class="lista-checks">
+            @for (r of roles(); track r) {
+              <label class="check">
+                <input type="checkbox" [checked]="rolesSel().includes(r)"
+                       [disabled]="r === 'Superadmin' && !soySuperadmin" (change)="alternarRol(r)">
+                {{ r }}
+              </label>
+            }
+          </div>
+        </div>
+
+        <div class="campo completo">
+          <label>Contraseña temporal</label>
+          <div class="fila">
+            <input type="text" name="password" [(ngModel)]="formulario.password"
+                   placeholder="Mínimo 8 caracteres, con letras y números">
+            <button type="button" class="btn-secundario" (click)="generarPasswordTemporal()">Generar</button>
+          </div>
+          <span class="sub">El usuario deberá cambiarla en su primer acceso.</span>
+        </div>
+
+        @if (errorModal()) {
+          <div class="modal-error">{{ errorModal() }}</div>
+        }
+
+        <div class="modal-pie">
+          <button class="btn-secundario" type="button" (click)="cerrarModal()">Cancelar</button>
+          <button class="btn-new" type="submit" [disabled]="procesando()">
+            {{ procesando() ? 'Guardando...' : 'Registrar usuario' }}
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+}
+
+<!-- Ventanas sobre un usuario seleccionado -->
+@if (seleccionado(); as u) {
+  @switch (modal()) {
+
+    <!-- Roles -->
+    @case ('roles') {
+      <div class="modal-fondo" (click)="cerrarModal()">
+        <div class="modal" (click)="$event.stopPropagation()">
+          <div class="modal-encabezado">
+            <h3>Roles de {{ u.nombres }} {{ u.apellidos }}</h3>
+            <button class="btn-cerrar" type="button" (click)="cerrarModal()">✕</button>
+          </div>
+          <form class="modal-cuerpo columna" (ngSubmit)="guardarRoles()">
+            <p class="sub">Cada rol trae un conjunto de permisos. Un usuario puede tener más de un rol.</p>
+            <div class="lista-checks vertical">
+              @for (r of roles(); track r) {
+                <label class="check">
+                  <input type="checkbox" [checked]="rolesSel().includes(r)"
+                         [disabled]="r === 'Superadmin' && !soySuperadmin" (change)="alternarRol(r)">
+                  {{ r }}
+                </label>
+              }
+            </div>
+            @if (errorModal()) {
+              <div class="modal-error">{{ errorModal() }}</div>
+            }
+            <div class="modal-pie">
+              <button class="btn-secundario" type="button" (click)="cerrarModal()">Cancelar</button>
+              <button class="btn-new" type="submit" [disabled]="procesando()">
+                {{ procesando() ? 'Guardando...' : 'Guardar roles' }}
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    }
+
+    <!-- Permisos -->
+    @case ('permisos') {
+      <div class="modal-fondo" (click)="cerrarModal()">
+        <div class="modal modal-ancho" (click)="$event.stopPropagation()">
+          <div class="modal-encabezado">
+            <h3>Permisos de {{ u.nombres }} {{ u.apellidos }}</h3>
+            <button class="btn-cerrar" type="button" (click)="cerrarModal()">✕</button>
+          </div>
+          <form class="modal-cuerpo columna" (ngSubmit)="guardarPermisos()">
+            @if (u.roles.includes('Superadmin')) {
+              <p class="sub">El rol Superadmin siempre tiene todos los permisos.</p>
+            } @else {
+              <p class="sub">
+                Roles actuales: <strong>{{ u.roles.join(', ') }}</strong>. Marque o desmarque para agregar o retirar
+                permisos individuales. No puede otorgar permisos que usted no posee.
+              </p>
+            }
+            <div class="lista-checks vertical">
+              @for (p of listaPermisos(); track p.codigo) {
+                <label class="check">
+                  <input type="checkbox" [checked]="permisosSel().includes(p.codigo)"
+                         [disabled]="u.roles.includes('Superadmin') || (!tengoPermiso(p.codigo) && !permisosSel().includes(p.codigo))"
+                         (change)="alternarPermiso(p.codigo)">
+                  <span>
+                    {{ p.etiqueta }}
+                    @if (permisosDeRolSel().includes(p.codigo)) {
+                      <em class="sub">(incluido por su rol)</em>
+                    }
+                  </span>
+                </label>
+              }
+            </div>
+            @if (errorModal()) {
+              <div class="modal-error">{{ errorModal() }}</div>
+            }
+            <div class="modal-pie">
+              <button class="btn-secundario" type="button" (click)="cerrarModal()">Cancelar</button>
+              <button class="btn-new" type="submit" [disabled]="procesando() || u.roles.includes('Superadmin')">
+                {{ procesando() ? 'Guardando...' : 'Guardar permisos' }}
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    }
+
+    <!-- Clave temporal -->
+    @case ('clave') {
+      <div class="modal-fondo" (click)="cerrarModal()">
+        <div class="modal" (click)="$event.stopPropagation()">
+          <div class="modal-encabezado">
+            <h3>Clave temporal</h3>
+            <button class="btn-cerrar" type="button" (click)="cerrarModal()">✕</button>
+          </div>
+          <div class="modal-cuerpo columna">
+            @if (!claveGenerada()) {
+              <p>
+                Se generará una clave temporal para <strong>{{ u.nombres }} {{ u.apellidos }}</strong>.
+                Si su cuenta estaba bloqueada, quedará desbloqueada; sus sesiones abiertas se cerrarán y deberá
+                cambiar la clave al ingresar.
+              </p>
+              @if (errorModal()) {
+                <div class="modal-error">{{ errorModal() }}</div>
+              }
+              <div class="modal-pie">
+                <button class="btn-secundario" type="button" (click)="cerrarModal()">Cancelar</button>
+                <button class="btn-new" type="button" [disabled]="procesando()" (click)="generarClave()">
+                  {{ procesando() ? 'Generando...' : 'Generar clave' }}
+                </button>
+              </div>
+            } @else {
+              <div class="aviso ok">Clave generada. Entréguesela al usuario: solo se muestra esta vez.</div>
+              <div class="clave-caja">
+                <code>{{ claveGenerada() }}</code>
+                <button class="btn-secundario" type="button" (click)="copiarClave()">{{ copiada() ? '✓ Copiada' : 'Copiar' }}</button>
+              </div>
+              @if (errorModal()) {
+                <div class="modal-error">{{ errorModal() }}</div>
+              }
+              <div class="modal-pie">
+                <button class="btn-new" type="button" (click)="cerrarModal()">Cerrar</button>
+              </div>
+            }
+          </div>
+        </div>
+      </div>
+    }
+
+    <!-- Baja -->
+    @case ('baja') {
+      <div class="modal-fondo" (click)="cerrarModal()">
+        <div class="modal" (click)="$event.stopPropagation()">
+          <div class="modal-encabezado">
+            <h3>Dar de baja a {{ u.nombres }} {{ u.apellidos }}</h3>
+            <button class="btn-cerrar" type="button" (click)="cerrarModal()">✕</button>
+          </div>
+          <form class="modal-cuerpo columna" (ngSubmit)="confirmarBaja()">
+            <p>La cuenta perderá el acceso de inmediato. Su historial en el sistema se conserva.</p>
+            <div class="campo">
+              <label>Motivo (opcional)</label>
+              <input type="text" name="motivoBaja" [(ngModel)]="motivoBaja" placeholder="Ej. Terminó su vinculación">
+            </div>
+            @if (errorModal()) {
+              <div class="modal-error">{{ errorModal() }}</div>
+            }
+            <div class="modal-pie">
+              <button class="btn-secundario" type="button" (click)="cerrarModal()">Cancelar</button>
+              <button class="btn-peligro" type="submit" [disabled]="procesando()">
+                {{ procesando() ? 'Procesando...' : 'Dar de baja' }}
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    }
+
+    <!-- Reactivar -->
+    @case ('reactivar') {
+      <div class="modal-fondo" (click)="cerrarModal()">
+        <div class="modal" (click)="$event.stopPropagation()">
+          <div class="modal-encabezado">
+            <h3>Reactivar a {{ u.nombres }} {{ u.apellidos }}</h3>
+            <button class="btn-cerrar" type="button" (click)="cerrarModal()">✕</button>
+          </div>
+          <div class="modal-cuerpo columna">
+            <p>La cuenta volverá a estar activa con los mismos roles y permisos que tenía.</p>
+            @if (u.motivoBaja) {
+              <p class="sub">Motivo de la baja: {{ u.motivoBaja }}</p>
+            }
+            @if (errorModal()) {
+              <div class="modal-error">{{ errorModal() }}</div>
+            }
+            <div class="modal-pie">
+              <button class="btn-secundario" type="button" (click)="cerrarModal()">Cancelar</button>
+              <button class="btn-new" type="button" [disabled]="procesando()" (click)="confirmarReactivar()">
+                {{ procesando() ? 'Procesando...' : 'Reactivar' }}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    }
+  }
+}

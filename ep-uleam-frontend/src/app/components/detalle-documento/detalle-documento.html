@@ -14,11 +14,13 @@
         <p class="sub">{{ doc.tipoDocumento }} · versión actual v{{ doc.versionActual }}</p>
       </div>
       <div class="acciones">
-        <button class="btn-primario" type="button" (click)="abrirModalVersion()" [disabled]="doc.bloqueado"
-                [title]="doc.bloqueado ? 'El documento está bloqueado' : ''">
-          + Nueva versión
-        </button>
-        @if (esControl) {
+        @if (puedeVersionar) {
+          <button class="btn-primario" type="button" (click)="abrirModalVersion()" [disabled]="doc.bloqueado"
+                  [title]="doc.bloqueado ? 'El documento está bloqueado' : ''">
+            + Nueva versión
+          </button>
+        }
+        @if (puedeVerificar) {
           <button class="btn-secundario" type="button" (click)="verificar()" [disabled]="verificando()">
             {{ verificando() ? 'Verificando...' : '🛡️ Verificar integridad' }}
           </button>
@@ -37,7 +39,7 @@
           <strong>🔒 Documento bloqueado por alerta de alteración</strong>
           <p>{{ doc.motivoBloqueo }}</p>
         </div>
-        @if (esControl) {
+        @if (puedeDesbloquear) {
           <button class="btn-secundario" type="button" (click)="abrirModalDesbloqueo()">Desbloquear</button>
         }
       </div>
@@ -129,7 +131,9 @@
               <th>Subida por</th>
               <th>Fecha</th>
               <th>SHA-256</th>
-              <th>Acciones</th>
+              @if (puedeDescargar) {
+                <th>Acciones</th>
+              }
             </tr>
           </thead>
           <tbody>
@@ -146,10 +150,12 @@
                 <td>{{ ver.creadoPor.nombre }}</td>
                 <td>{{ ver.createdAt | date: 'dd MMM yyyy, HH:mm' }}</td>
                 <td><code class="hash" [title]="ver.hashArchivo">{{ hashCorto(ver.hashArchivo) }}</code></td>
-                <td class="celda-acciones">
-                  <button class="btn-icon" type="button" title="Ver PDF" (click)="verVersion(ver)">👁</button>
-                  <button class="btn-icon" type="button" title="Descargar" (click)="descargar(ver)">⬇</button>
-                </td>
+                @if (puedeDescargar) {
+                  <td class="celda-acciones">
+                    <button class="btn-icon" type="button" title="Ver PDF" (click)="verVersion(ver)">👁</button>
+                    <button class="btn-icon" type="button" title="Descargar" (click)="descargar(ver)">⬇</button>
+                  </td>
+                }
               </tr>
             }
           </tbody>
@@ -157,8 +163,8 @@
       </div>
     </div>
 
-    <!-- Trazabilidad (solo roles de control) -->
-    @if (esControl) {
+    <!-- Trazabilidad (solo con permiso de bitácora) -->
+    @if (puedeTrazabilidad) {
       <div class="tarjeta">
         <h3>Trazabilidad del documento</h3>
         @if (trazabilidad().length === 0) {
