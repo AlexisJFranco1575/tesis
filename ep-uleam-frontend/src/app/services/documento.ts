@@ -3,11 +3,42 @@ import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { API_URL } from '../config';
 
-export type EstadoDocumento = 'Generado' | 'En Revisión' | 'Aprobado' | 'Archivado';
+export type EstadoDocumento = 'Generado' | 'En Revisión' | 'Rechazado' | 'Aprobado' | 'Distribuido' | 'Archivado';
+
+export const ESTADOS_DOCUMENTO: EstadoDocumento[] = [
+  'Generado',
+  'En Revisión',
+  'Rechazado',
+  'Aprobado',
+  'Distribuido',
+  'Archivado',
+];
+
+export const TIPOS_DOCUMENTO = ['Oficio', 'Memorando', 'Resolución', 'Informe Técnico', 'Contrato'];
 
 export interface Persona {
   nombre: string;
   departamento: string;
+}
+
+// Decisión de Gerencia sobre una versión del documento
+export interface Revision {
+  decision: 'Aprobado' | 'Rechazado';
+  observacion: string;
+  version: number;
+  por: { id: string; nombre: string; rol: string };
+  fecha: string;
+}
+
+// Cambio de estado que el usuario puede ejecutar ahora mismo (lo calcula el servidor)
+export interface Transicion {
+  estado: EstadoDocumento;
+  requiereObservacion: boolean;
+}
+
+export interface AccionesDocumento {
+  modificar: boolean;
+  versionar: boolean;
 }
 
 export interface Documento {
@@ -25,6 +56,10 @@ export interface Documento {
   creadoPor: { id: string; nombre: string };
   createdAt: string;
   updatedAt: string;
+  // Solo vienen al consultar un documento individual
+  revisiones?: Revision[];
+  transicionesPermitidas?: Transicion[];
+  acciones?: AccionesDocumento;
 }
 
 export interface Version {
@@ -57,9 +92,13 @@ export interface ResultadoVerificacion {
 
 export type AccionBitacora =
   | 'REGISTRO_DOCUMENTO'
+  | 'MODIFICACION_DOCUMENTO'
   | 'NUEVA_VERSION'
   | 'CONSULTA_DOCUMENTO'
   | 'DESCARGA_DOCUMENTO'
+  | 'CAMBIO_ESTADO'
+  | 'REVISION_APROBADA'
+  | 'REVISION_RECHAZADA'
   | 'VERIFICACION_INTEGRIDAD'
   | 'ALERTA_ALTERACION'
   | 'DESBLOQUEO'
@@ -108,9 +147,13 @@ export interface ResultadoAuditoria {
 
 const ETIQUETAS_ACCION: Record<string, string> = {
   REGISTRO_DOCUMENTO: 'Registro del documento',
+  MODIFICACION_DOCUMENTO: 'Modificación de datos',
   NUEVA_VERSION: 'Nueva versión',
   CONSULTA_DOCUMENTO: 'Consulta del documento',
   DESCARGA_DOCUMENTO: 'Descarga del documento',
+  CAMBIO_ESTADO: 'Cambio de estado',
+  REVISION_APROBADA: 'Documento aprobado',
+  REVISION_RECHAZADA: 'Documento rechazado',
   VERIFICACION_INTEGRIDAD: 'Verificación de integridad',
   ALERTA_ALTERACION: 'Alerta de alteración',
   DESBLOQUEO: 'Desbloqueo de documento',
@@ -133,13 +176,33 @@ export const etiquetaAccion = (accion: string): string => ETIQUETAS_ACCION[accio
 
 // Color de la insignia: rojo = alerta, verde = comprobación o restablecimiento, azul = el resto
 export const claseAccion = (accion: string): string => {
-  if (['ALERTA_ALTERACION', 'CUENTA_BLOQUEADA', 'LOGIN_FALLIDO', 'USUARIO_BAJA'].includes(accion)) {
+  if (
+    ['ALERTA_ALTERACION', 'CUENTA_BLOQUEADA', 'LOGIN_FALLIDO', 'USUARIO_BAJA', 'REVISION_RECHAZADA'].includes(accion)
+  ) {
     return 'alerta';
   }
-  if (['VERIFICACION_INTEGRIDAD', 'DESBLOQUEO', 'USUARIO_REACTIVADO'].includes(accion)) {
+  if (['VERIFICACION_INTEGRIDAD', 'DESBLOQUEO', 'USUARIO_REACTIVADO', 'REVISION_APROBADA'].includes(accion)) {
     return 'ok';
   }
   return 'neutra';
+};
+
+// Clase de la etiqueta de estado del documento
+export const claseEstado = (estado: string): string => {
+  switch (estado) {
+    case 'Generado':
+      return 'generated';
+    case 'En Revisión':
+      return 'review';
+    case 'Rechazado':
+      return 'rejected';
+    case 'Aprobado':
+      return 'approved';
+    case 'Distribuido':
+      return 'distributed';
+    default:
+      return 'archived';
+  }
 };
 
 const leerTexto = (blob: Blob): Promise<string> =>
@@ -188,6 +251,25 @@ export class DocumentoService {
   // Recibe FormData porque se envía el archivo PDF junto con los datos
   crearDocumento(datos: FormData): Observable<{ mensaje: string; documento: Documento }> {
     return this.http.post<{ mensaje: string; documento: Documento }>(this.url, datos);
+  }
+
+  modificarDocumento(
+    id: string,
+    datos: { asunto?: string; tipoDocumento?: string; destinatario?: Persona }
+  ): Observable<{ mensaje: string; documento: Documento }> {
+    return this.http.patch<{ mensaje: string; documento: Documento }>(`${this.url}/${id}`, datos);
+  }
+
+  // Revisión, aprobación, rechazo y demás cambios del flujo documental
+  cambiarEstado(
+    id: string,
+    estado: EstadoDocumento,
+    observacion = ''
+  ): Observable<{ mensaje: string; documento: Documento }> {
+    return this.http.post<{ mensaje: string; documento: Documento }>(`${this.url}/${id}/estado`, {
+      estado,
+      observacion,
+    });
   }
 
   listarVersiones(id: string): Observable<Version[]> {

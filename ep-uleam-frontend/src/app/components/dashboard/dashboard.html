@@ -39,6 +39,7 @@
       </div>
       @if (usuarioActual(); as u) {
         <div class="user-info">
+          <app-campana></app-campana>
           <div class="text-info">
             <strong>{{ u.rol }} · {{ u.departamento }}</strong>
             <span>{{ u.nombreCompleto }}</span>

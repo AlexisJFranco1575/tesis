@@ -1,0 +1,37 @@
+<div class="campana">
+  <button class="campana-boton" type="button" title="Notificaciones" aria-label="Notificaciones" (click)="alternar()">
+    🔔
+    @if (noLeidas() > 0) {
+      <span class="contador">{{ noLeidas() > 99 ? '99+' : noLeidas() }}</span>
+    }
+  </button>
+
+  @if (abierta()) {
+    <div class="campana-fondo" (click)="cerrar()"></div>
+
+    <div class="panel">
+      <div class="panel-cabecera">
+        <strong>Notificaciones</strong>
+        @if (noLeidas() > 0) {
+          <button type="button" class="link-boton" (click)="marcarTodas()">Marcar todas como leídas</button>
+        }
+      </div>
+
+      @if (notificaciones().length === 0) {
+        <div class="vacio">No tiene notificaciones.</div>
+      } @else {
+        <ul class="lista">
+          @for (n of notificaciones(); track n._id) {
+            <li>
+              <button type="button" class="item" [class.no-leida]="!n.leida" [class.alerta]="n.tipo === 'ALERTA'" (click)="abrir(n)">
+                <span class="item-titulo">{{ n.titulo }}</span>
+                <span class="item-mensaje">{{ n.mensaje }}</span>
+                <span class="item-fecha">{{ n.createdAt | date: 'dd MMM, HH:mm' }}</span>
+              </button>
+            </li>
+          }
+        </ul>
+      }
+    </div>
+  }
+</div>

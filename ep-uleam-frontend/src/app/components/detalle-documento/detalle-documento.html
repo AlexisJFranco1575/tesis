@@ -14,11 +14,11 @@
         <p class="sub">{{ doc.tipoDocumento }} · versión actual v{{ doc.versionActual }}</p>
       </div>
       <div class="acciones">
-        @if (puedeVersionar) {
-          <button class="btn-primario" type="button" (click)="abrirModalVersion()" [disabled]="doc.bloqueado"
-                  [title]="doc.bloqueado ? 'El documento está bloqueado' : ''">
-            + Nueva versión
-          </button>
+        @if (doc.acciones?.modificar) {
+          <button class="btn-secundario" type="button" (click)="abrirEditar()">✎ Editar datos</button>
+        }
+        @if (doc.acciones?.versionar) {
+          <button class="btn-primario" type="button" (click)="abrirModalVersion()">+ Nueva versión</button>
         }
         @if (puedeVerificar) {
           <button class="btn-secundario" type="button" (click)="verificar()" [disabled]="verificando()">
@@ -44,6 +44,50 @@
         }
       </div>
     }
+
+    <!-- Observación de Gerencia (documento devuelto para corrección) -->
+    @if (ultimoRechazo(); as r) {
+      <div class="panel-observacion">
+        <h4>↩ Devuelto por Gerencia para su corrección</h4>
+        <p><strong>Observación:</strong> {{ r.observacion }}</p>
+        <p class="detalle">{{ r.por.nombre }} · {{ r.fecha | date: 'dd MMM yyyy, HH:mm' }} · sobre la versión v{{ r.version }}</p>
+      </div>
+    }
+
+    <!-- Flujo documental -->
+    <div class="tarjeta">
+      <h3>Flujo documental</h3>
+      <div class="flujo-cabecera">
+        <div class="flujo-estado">
+          <span class="etiqueta">Estado actual</span>
+          <span>
+            <span class="status-badge" [class]="'status-badge ' + claseEstado(doc.estado)">{{ doc.estado }}</span>
+            @if (doc.bloqueado) {
+              <span class="badge-bloqueado">🔒 Bloqueado</span>
+            }
+          </span>
+        </div>
+
+        <div class="flujo-acciones">
+          @for (t of transiciones(); track t.estado) {
+            <button type="button" [class]="claseBoton(t.estado)" (click)="abrirEstado(t)">{{ etiquetaTransicion(t) }}</button>
+          }
+        </div>
+      </div>
+
+      @if (doc.estado === 'En Revisión' && puedeRevisar) {
+        <p class="nota">Revise el contenido del documento con el botón 👁 de la tabla de versiones y luego apruebe o rechace.</p>
+      }
+      @if (doc.estado === 'En Revisión' && !puedeRevisar) {
+        <p class="nota">El documento está en revisión de Gerencia. No puede modificarse hasta que se decida.</p>
+      }
+      @if (!doc.bloqueado && tienePermisoEdicion && !doc.acciones?.modificar && !doc.acciones?.versionar) {
+        <p class="nota">Solo se pueden modificar los datos o crear versiones cuando el documento está en estado Generado o Rechazado.</p>
+      }
+      @if (!doc.bloqueado && transiciones().length === 0 && doc.estado !== 'En Revisión') {
+        <p class="nota">No tiene cambios de estado disponibles para este documento.</p>
+      }
+    </div>
 
     <!-- Resultado de la verificación -->
     @if (verificacion(); as v) {
@@ -98,15 +142,7 @@
       <h3>Información del documento</h3>
       <div class="info-grid">
         <div><span class="etiqueta">Asunto</span><span>{{ doc.asunto }}</span></div>
-        <div>
-          <span class="etiqueta">Estado</span>
-          <span>
-            <span class="status-badge" [class]="'status-badge ' + claseEstado(doc.estado)">{{ doc.estado }}</span>
-            @if (doc.bloqueado) {
-              <span class="badge-bloqueado">🔒 Bloqueado</span>
-            }
-          </span>
-        </div>
+        <div><span class="etiqueta">Tipo de documento</span><span>{{ doc.tipoDocumento }}</span></div>
         <div><span class="etiqueta">Remitente</span><span>{{ doc.remitente.nombre }} ({{ doc.remitente.departamento }})</span></div>
         <div><span class="etiqueta">Destinatario</span><span>{{ doc.destinatario.nombre }} ({{ doc.destinatario.departamento }})</span></div>
         <div><span class="etiqueta">Registrado por</span><span>{{ doc.creadoPor.nombre }}</span></div>
@@ -117,6 +153,27 @@
         </div>
       </div>
     </div>
+
+    <!-- Historial de revisiones de Gerencia -->
+    @if (revisiones().length > 0) {
+      <div class="tarjeta">
+        <h3>Revisiones de Gerencia ({{ revisiones().length }})</h3>
+        <ul class="revisiones">
+          @for (r of revisiones(); track r.fecha) {
+            <li class="revision" [class.aprobado]="r.decision === 'Aprobado'" [class.rechazado]="r.decision === 'Rechazado'">
+              <div class="revision-cabecera">
+                <strong>{{ r.decision === 'Aprobado' ? '✓ Aprobado' : '✗ Rechazado' }} · versión v{{ r.version }}</strong>
+                <span class="sub">{{ r.fecha | date: 'dd MMM yyyy, HH:mm' }}</span>
+              </div>
+              <div class="sub">{{ r.por.nombre }} · {{ r.por.rol }}</div>
+              @if (r.observacion) {
+                <div class="revision-observacion">{{ r.observacion }}</div>
+              }
+            </li>
+          }
+        </ul>
+      </div>
+    }
 
     <!-- Versiones -->
     <div class="tarjeta">
@@ -189,6 +246,90 @@
     }
   }
 </div>
+
+<!-- Ventana: cambio de estado -->
+@if (modalEstado(); as t) {
+  <div class="modal-fondo" (click)="cerrarEstado()">
+    <div class="modal" (click)="$event.stopPropagation()">
+      <div class="modal-encabezado">
+        <h3>{{ etiquetaTransicion(t) }}</h3>
+        <button class="btn-cerrar" type="button" (click)="cerrarEstado()">✕</button>
+      </div>
+
+      <form class="modal-cuerpo" (ngSubmit)="confirmarEstado()">
+        <p class="sub">{{ descripcionTransicion(t.estado) }}</p>
+
+        @if (t.estado === 'Aprobado' || t.estado === 'Rechazado') {
+          <div class="campo">
+            <label>Observación {{ t.requiereObservacion ? '(obligatoria)' : '(opcional)' }}</label>
+            <textarea name="observacion" [(ngModel)]="observacionEstado" rows="4"
+                      [placeholder]="t.requiereObservacion ? 'Indique el motivo del rechazo' : 'Ej. Conforme'"></textarea>
+          </div>
+        }
+
+        @if (errorEstado()) {
+          <div class="modal-error">{{ errorEstado() }}</div>
+        }
+
+        <div class="modal-pie">
+          <button class="btn-secundario" type="button" (click)="cerrarEstado()">Cancelar</button>
+          <button [class]="claseBoton(t.estado)" type="submit" [disabled]="cambiandoEstado()">
+            {{ cambiandoEstado() ? 'Procesando...' : 'Confirmar' }}
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+}
+
+<!-- Ventana: editar datos -->
+@if (modalEditar()) {
+  <div class="modal-fondo" (click)="cerrarEditar()">
+    <div class="modal" (click)="$event.stopPropagation()">
+      <div class="modal-encabezado">
+        <h3>Editar datos del documento</h3>
+        <button class="btn-cerrar" type="button" (click)="cerrarEditar()">✕</button>
+      </div>
+
+      <form class="modal-cuerpo" (ngSubmit)="guardarEdicion()">
+        <p class="sub">Los datos anteriores quedan registrados en la trazabilidad. El archivo se cambia creando una nueva versión.</p>
+        <div class="campo">
+          <label>Asunto</label>
+          <input type="text" name="asunto" [(ngModel)]="edicion.asunto">
+        </div>
+        <div class="campo">
+          <label>Tipo de documento</label>
+          <select name="tipoDocumento" [(ngModel)]="edicion.tipoDocumento">
+            @for (tipo of tipos; track tipo) {
+              <option [value]="tipo">{{ tipo }}</option>
+            }
+          </select>
+        </div>
+        <div class="fila-doble">
+          <div class="campo">
+            <label>Destinatario</label>
+            <input type="text" name="destinatarioNombre" [(ngModel)]="edicion.destinatarioNombre">
+          </div>
+          <div class="campo">
+            <label>Departamento</label>
+            <input type="text" name="destinatarioDepartamento" [(ngModel)]="edicion.destinatarioDepartamento">
+          </div>
+        </div>
+
+        @if (errorEdicion()) {
+          <div class="modal-error">{{ errorEdicion() }}</div>
+        }
+
+        <div class="modal-pie">
+          <button class="btn-secundario" type="button" (click)="cerrarEditar()">Cancelar</button>
+          <button class="btn-primario" type="submit" [disabled]="guardandoEdicion()">
+            {{ guardandoEdicion() ? 'Guardando...' : 'Guardar cambios' }}
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+}
 
 <!-- Ventana: nueva versión -->
 @if (modalVersion()) {

@@ -3,13 +3,20 @@ import { DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { AuthService } from '../../services/auth';
-import { Documento, DocumentoService, EstadoDocumento, mensajeDeError } from '../../services/documento';
+import {
+  Documento,
+  DocumentoService,
+  ESTADOS_DOCUMENTO,
+  TIPOS_DOCUMENTO,
+  claseEstado,
+  mensajeDeError,
+} from '../../services/documento';
 
 @Component({
   selector: 'app-lista-documentos',
   standalone: true,
   imports: [FormsModule, DatePipe],
-  styleUrl: './lista-documentos.css',
+  styleUrls: ['./lista-documentos.css', './lista-avisos.css'],
   templateUrl: './lista-documentos.html',
 })
 export class ListaDocumentosComponent implements OnInit {
@@ -18,9 +25,12 @@ export class ListaDocumentosComponent implements OnInit {
   private router = inject(Router);
 
   readonly puedeRegistrar = this.auth.tienePermiso('documentos.registrar');
+  readonly puedeAprobar = this.auth.tienePermiso('documentos.aprobar');
+  readonly puedeCorregir = this.auth.tienePermiso('documentos.versionar');
 
-  readonly tipos = ['Oficio', 'Memorando', 'Resolución', 'Informe Técnico', 'Contrato'];
-  readonly estados: EstadoDocumento[] = ['Generado', 'En Revisión', 'Aprobado', 'Archivado'];
+  readonly tipos = TIPOS_DOCUMENTO;
+  readonly estados = ESTADOS_DOCUMENTO;
+  readonly claseEstado = claseEstado;
 
   // Lista y estado de carga
   documentos = signal<Documento[]>([]);
@@ -43,6 +53,10 @@ export class ListaDocumentosComponent implements OnInit {
     const lista = this.documentos().map((d) => d.remitente.departamento);
     return [...new Set(lista)].sort();
   });
+
+  // Tareas pendientes
+  pendientesRevision = computed(() => this.documentos().filter((d) => d.estado === 'En Revisión').length);
+  rechazados = computed(() => this.documentos().filter((d) => d.estado === 'Rechazado').length);
 
   documentosFiltrados = computed(() => {
     const texto = this.textoBusqueda().trim().toLowerCase();
@@ -82,15 +96,8 @@ export class ListaDocumentosComponent implements OnInit {
     });
   }
 
-  claseEstado(estado: EstadoDocumento): string {
-    switch (estado) {
-      case 'Aprobado':
-        return 'approved';
-      case 'En Revisión':
-        return 'review';
-      default:
-        return 'archived';
-    }
+  filtrarPorEstado(estado: string): void {
+    this.filtroEstado.set(estado);
   }
 
   verDetalle(id: string): void {

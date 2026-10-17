@@ -1,4 +1,4 @@
-import { Component, OnInit, inject, signal } from '@angular/core';
+import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, RouterLink } from '@angular/router';
@@ -10,17 +10,30 @@ import {
   EntradaBitacora,
   EstadoDocumento,
   ResultadoVerificacion,
+  TIPOS_DOCUMENTO,
+  Transicion,
   Version,
   claseAccion,
+  claseEstado,
   etiquetaAccion,
   mensajeDeError,
 } from '../../services/documento';
+
+const DESCRIPCION_TRANSICION: Record<string, string> = {
+  'En Revisión':
+    'El documento pasará a Gerencia para su revisión. Mientras esté en revisión no podrá modificarse ni tendrá nuevas versiones.',
+  Aprobado: 'Se registrará su aprobación. Puede agregar una observación (opcional).',
+  Rechazado: 'El documento volverá al área para su corrección. La observación con el motivo es obligatoria.',
+  Distribuido: 'Se notificará al área destinataria que el documento ya fue distribuido.',
+  Archivado: 'El documento quedará archivado.',
+  Generado: 'El documento volverá al estado Generado y podrá modificarse nuevamente.',
+};
 
 @Component({
   selector: 'app-detalle-documento',
   standalone: true,
   imports: [FormsModule, DatePipe, RouterLink],
-  styleUrl: './detalle-documento.css',
+  styleUrls: ['./detalle-documento.css', './detalle-flujo.css'],
   templateUrl: './detalle-documento.html',
 })
 export class DetalleDocumentoComponent implements OnInit {
@@ -29,12 +42,16 @@ export class DetalleDocumentoComponent implements OnInit {
   private auth = inject(AuthService);
 
   // Qué botones se muestran según los permisos del usuario (el backend los exige igualmente)
-  readonly puedeVersionar = this.auth.tienePermiso('documentos.versionar');
   readonly puedeDescargar = this.auth.tienePermiso('documentos.descargar');
   readonly puedeVerificar = this.auth.tienePermiso('integridad.verificar');
   readonly puedeDesbloquear = this.auth.tienePermiso('integridad.desbloquear');
   readonly puedeTrazabilidad = this.auth.tienePermiso('bitacora.consultar');
+  readonly puedeRevisar = this.auth.tienePermiso('documentos.aprobar');
+  readonly tienePermisoEdicion =
+    this.auth.tienePermiso('documentos.versionar') || this.auth.tienePermiso('documentos.modificar');
 
+  readonly tipos = TIPOS_DOCUMENTO;
+  readonly claseEstado = claseEstado;
   readonly etiqueta = etiquetaAccion;
   readonly clase = claseAccion;
 
@@ -47,9 +64,36 @@ export class DetalleDocumentoComponent implements OnInit {
   error = signal('');
   mensaje = signal<{ tipo: 'ok' | 'error'; texto: string } | null>(null);
 
+  // Cambios de estado que el servidor permite al usuario
+  transiciones = computed(() => this.documento()?.transicionesPermitidas ?? []);
+
+  // Decisiones de Gerencia, de la más reciente a la más antigua
+  revisiones = computed(() => [...(this.documento()?.revisiones ?? [])].reverse());
+
+  // Observación de Gerencia cuando el documento fue devuelto para corrección
+  ultimoRechazo = computed(() => {
+    const doc = this.documento();
+    if (!doc || doc.estado !== 'Rechazado') {
+      return null;
+    }
+    return (doc.revisiones ?? []).filter((r) => r.decision === 'Rechazado').pop() ?? null;
+  });
+
   // Verificación de integridad
   verificando = signal(false);
   verificacion = signal<ResultadoVerificacion | null>(null);
+
+  // Ventana: cambio de estado
+  modalEstado = signal<Transicion | null>(null);
+  cambiandoEstado = signal(false);
+  errorEstado = signal('');
+  observacionEstado = '';
+
+  // Ventana: editar datos
+  modalEditar = signal(false);
+  guardandoEdicion = signal(false);
+  errorEdicion = signal('');
+  edicion = { asunto: '', tipoDocumento: 'Oficio', destinatarioNombre: '', destinatarioDepartamento: '' };
 
   // Ventana: nueva versión
   modalVersion = signal(false);
@@ -144,6 +188,124 @@ export class DetalleDocumentoComponent implements OnInit {
         this.cargar(false);
       },
     });
+  }
+
+  // ---------- Cambio de estado (revisión, aprobación, rechazo y flujo) ----------
+
+  etiquetaTransicion(t: Transicion): string {
+    const actual = this.documento()?.estado;
+    switch (t.estado) {
+      case 'En Revisión':
+        return actual === 'Rechazado' ? 'Reenviar a revisión' : 'Enviar a revisión';
+      case 'Aprobado':
+        return '✓ Aprobar';
+      case 'Rechazado':
+        return '✗ Rechazar';
+      case 'Distribuido':
+        return 'Marcar como distribuido';
+      case 'Archivado':
+        return 'Archivar';
+      default:
+        return 'Recuperar del archivo';
+    }
+  }
+
+  claseBoton(estado: EstadoDocumento): string {
+    if (estado === 'Aprobado') {
+      return 'btn-exito';
+    }
+    return estado === 'Rechazado' ? 'btn-peligro' : 'btn-primario';
+  }
+
+  descripcionTransicion(estado: string): string {
+    return DESCRIPCION_TRANSICION[estado] ?? '';
+  }
+
+  abrirEstado(transicion: Transicion): void {
+    this.observacionEstado = '';
+    this.errorEstado.set('');
+    this.modalEstado.set(transicion);
+  }
+
+  cerrarEstado(): void {
+    this.modalEstado.set(null);
+  }
+
+  confirmarEstado(): void {
+    const transicion = this.modalEstado();
+    if (!transicion) {
+      return;
+    }
+
+    const observacion = this.observacionEstado.trim();
+    if (transicion.requiereObservacion && !observacion) {
+      this.errorEstado.set('Debe registrar la observación con el motivo del rechazo.');
+      return;
+    }
+
+    this.cambiandoEstado.set(true);
+    this.servicio.cambiarEstado(this.id, transicion.estado, observacion).subscribe({
+      next: (res) => {
+        this.cambiandoEstado.set(false);
+        this.cerrarEstado();
+        this.verificacion.set(null);
+        this.mostrar('ok', res.mensaje);
+        this.cargar(false);
+      },
+      error: async (err) => {
+        this.cambiandoEstado.set(false);
+        this.errorEstado.set(await mensajeDeError(err, 'No se pudo cambiar el estado.'));
+      },
+    });
+  }
+
+  // ---------- Editar datos del documento ----------
+
+  abrirEditar(): void {
+    const doc = this.documento();
+    if (!doc) {
+      return;
+    }
+    this.edicion = {
+      asunto: doc.asunto,
+      tipoDocumento: doc.tipoDocumento,
+      destinatarioNombre: doc.destinatario.nombre,
+      destinatarioDepartamento: doc.destinatario.departamento,
+    };
+    this.errorEdicion.set('');
+    this.modalEditar.set(true);
+  }
+
+  cerrarEditar(): void {
+    this.modalEditar.set(false);
+  }
+
+  guardarEdicion(): void {
+    const e = this.edicion;
+    if (!e.asunto.trim() || !e.destinatarioNombre.trim() || !e.destinatarioDepartamento.trim()) {
+      this.errorEdicion.set('Complete el asunto y los datos del destinatario.');
+      return;
+    }
+
+    this.guardandoEdicion.set(true);
+    this.servicio
+      .modificarDocumento(this.id, {
+        asunto: e.asunto.trim(),
+        tipoDocumento: e.tipoDocumento,
+        destinatario: { nombre: e.destinatarioNombre.trim(), departamento: e.destinatarioDepartamento.trim() },
+      })
+      .subscribe({
+        next: (res) => {
+          this.guardandoEdicion.set(false);
+          this.cerrarEditar();
+          this.mostrar('ok', res.mensaje);
+          this.cargar(false);
+        },
+        error: async (err) => {
+          this.guardandoEdicion.set(false);
+          this.errorEdicion.set(await mensajeDeError(err, 'No se pudo actualizar el documento.'));
+        },
+      });
   }
 
   // ---------- Nueva versión ----------
@@ -250,17 +412,6 @@ export class DetalleDocumentoComponent implements OnInit {
   }
 
   // ---------- Presentación ----------
-
-  claseEstado(estado: EstadoDocumento): string {
-    switch (estado) {
-      case 'Aprobado':
-        return 'approved';
-      case 'En Revisión':
-        return 'review';
-      default:
-        return 'archived';
-    }
-  }
 
   formatearTamano(bytes: number): string {
     if (!bytes) {

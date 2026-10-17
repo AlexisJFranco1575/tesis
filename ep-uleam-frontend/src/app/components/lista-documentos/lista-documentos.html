@@ -9,6 +9,24 @@
     }
   </div>
 
+  <!-- Tareas pendientes -->
+  @if ((puedeAprobar && pendientesRevision() > 0) || (puedeCorregir && rechazados() > 0)) {
+    <div class="avisos">
+      @if (puedeAprobar && pendientesRevision() > 0) {
+        <div class="aviso-tarea revision">
+          <span>📝 Hay <strong>{{ pendientesRevision() }}</strong> documento(s) pendiente(s) de su revisión.</span>
+          <button type="button" class="btn-secundario" (click)="filtrarPorEstado('En Revisión')">Ver pendientes</button>
+        </div>
+      }
+      @if (puedeCorregir && rechazados() > 0) {
+        <div class="aviso-tarea rechazo">
+          <span>↩ Gerencia rechazó <strong>{{ rechazados() }}</strong> documento(s) que debe(n) corregirse.</span>
+          <button type="button" class="btn-secundario" (click)="filtrarPorEstado('Rechazado')">Ver rechazados</button>
+        </div>
+      }
+    </div>
+  }
+
   <div class="filters-bar">
     <input type="text" class="search-input" [(ngModel)]="textoBusqueda"
            placeholder="🔍 Buscar por código, asunto, remitente o hash...">

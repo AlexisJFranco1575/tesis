@@ -2,11 +2,12 @@ import { Component, OnDestroy, OnInit, computed, inject, signal } from '@angular
 import { Router, RouterModule } from '@angular/router';
 import { AuthService, UsuarioSesion } from '../../services/auth';
 import { InactividadService } from '../../services/inactividad';
+import { CampanaComponent } from '../campana/campana';
 
 @Component({
   selector: 'app-dashboard',
   standalone: true,
-  imports: [RouterModule],
+  imports: [RouterModule, CampanaComponent],
   templateUrl: './dashboard.html',
   styleUrls: ['./dashboard.css']
 })

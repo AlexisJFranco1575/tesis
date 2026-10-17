@@ -44,3 +44,9 @@ body {
   color: #742a2a;
   border: 1px solid #feb2b2;
 }
+
+/* Colores de los estados del flujo documental.
+   Los estados Aprobado, En Revisión y Archivado se definen en la hoja de cada pantalla. */
+.status-badge.generated { background: var(--ep-azul-fondo-suave); color: var(--ep-azul-medio); }
+.status-badge.rejected { background: #fed7d7; color: #742a2a; }
+.status-badge.distributed { background: #bee3f8; color: #2a4365; }

@@ -1,0 +1,16 @@
+.avisos { display: flex; flex-direction: column; gap: 10px; margin-bottom: 18px; }
+
+.aviso-tarea {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 18px;
+  border-radius: 8px;
+  border: 1px solid;
+  border-left-width: 5px;
+  font-size: 14px;
+}
+
+.aviso-tarea.revision { background: #fffaf0; border-color: #fbd38d; color: #744210; }
+.aviso-tarea.rechazo { background: #fff5f5; border-color: #feb2b2; color: #742a2a; }
