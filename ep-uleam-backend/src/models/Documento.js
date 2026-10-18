@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 const { ESTADOS } = require('../config/flujo');
+const { TIPOS_DOCUMENTO } = require('../config/clasificacion');
 
 // Decisión de Gerencia sobre una versión del documento (RF-18)
 const revisionSchema = new mongoose.Schema({
@@ -15,12 +16,16 @@ const revisionSchema = new mongoose.Schema({
 }, { _id: false });
 
 const documentoSchema = new mongoose.Schema({
-    codigoTramite: { type: String, required: true, unique: true, trim: true }, // Ej: EP-ULEAM-2026-001
-    tipoDocumento: {
-        type: String,
-        enum: ['Oficio', 'Memorando', 'Resolución', 'Informe Técnico', 'Contrato'],
-        required: true
-    },
+    // Identificador único generado por el sistema, ej: EP-ULEAM-2026-0001 (CU-08 paso 7)
+    codigoTramite: { type: String, required: true, unique: true, trim: true },
+
+    // Datos del oficio (CU-08 paso 3). "sparse" permite documentos antiguos que no los tienen.
+    numeroOficio: { type: String, trim: true, uppercase: true, unique: true, sparse: true },
+    fechaOficio: { type: Date },
+    motivo: { type: String, default: '', trim: true },
+    observacion: { type: String, default: '', trim: true },
+
+    tipoDocumento: { type: String, enum: TIPOS_DOCUMENTO, required: true },
     asunto: { type: String, required: true, trim: true },
     remitente: {
         nombre: { type: String, required: true },

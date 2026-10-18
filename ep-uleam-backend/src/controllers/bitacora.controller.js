@@ -1,4 +1,3 @@
-// src/controllers/bitacora.controller.js
 const mongoose = require('mongoose');
 const Bitacora = require('../models/Bitacora');
 const Documento = require('../models/Documento');
@@ -32,20 +31,23 @@ const ejecutarAuditoria = async (req, res) => {
         // 1) Primero se revisa la cadena de la bitácora, antes de que la propia auditoría agregue entradas
         const bitacora = await verificarCadenaBitacora();
 
-        // 2) Se verifica la integridad de todas las versiones de todos los documentos
+        // 2) Se verifica la integridad de todas las versiones y anexos de todos los documentos
         const documentos = await Documento.find().sort({ createdAt: 1 });
         const documentosAlterados = [];
         let versionesAnalizadas = 0;
+        let anexosAnalizados = 0;
 
         for (const documento of documentos) {
             const resultado = await verificarDocumento(documento, req.usuario, { registrarExito: false });
             versionesAnalizadas += resultado.versiones.length;
+            anexosAnalizados += resultado.anexos.length;
 
             if (!resultado.valido && !resultado.sinHash) {
                 documentosAlterados.push({
                     documentoId: documento._id,
                     codigoTramite: documento.codigoTramite,
-                    versiones: resultado.versiones.filter((v) => !v.coincide)
+                    versiones: resultado.versiones.filter((v) => !v.coincide),
+                    anexos: resultado.anexos.filter((a) => !a.coincide)
                 });
             }
         }
@@ -55,7 +57,7 @@ const ejecutarAuditoria = async (req, res) => {
         await registrarAccion({
             accion: 'AUDITORIA_GENERAL',
             usuario: req.usuario,
-            detalle: `${documentos.length} documento(s), ${versionesAnalizadas} versión(es). ` +
+            detalle: `${documentos.length} documento(s), ${versionesAnalizadas} versión(es), ${anexosAnalizados} anexo(s). ` +
                      `Alterados: ${documentosAlterados.length}. Bitácora íntegra: ${bitacora.integra ? 'sí' : 'no'}.`
         });
 
@@ -66,6 +68,7 @@ const ejecutarAuditoria = async (req, res) => {
             valido,
             documentosAnalizados: documentos.length,
             versionesAnalizadas,
+            anexosAnalizados,
             documentosAlterados,
             bitacora
         });

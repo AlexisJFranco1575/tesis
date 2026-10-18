@@ -5,11 +5,17 @@ import { ActivatedRoute, RouterLink } from '@angular/router';
 import { forkJoin } from 'rxjs';
 import { AuthService } from '../../services/auth';
 import {
+  Anexo,
   Documento,
   DocumentoService,
   EntradaBitacora,
   EstadoDocumento,
+  FORMATOS_ANEXO,
+  MAX_ANEXOS_POR_CARGA,
+  Persona,
   ResultadoVerificacion,
+  TAMANO_MAXIMO_BYTES,
+  TIPOS_ANEXO,
   TIPOS_DOCUMENTO,
   Transicion,
   Version,
@@ -29,11 +35,14 @@ const DESCRIPCION_TRANSICION: Record<string, string> = {
   Generado: 'El documento volverá al estado Generado y podrá modificarse nuevamente.',
 };
 
+// Formatos que se pueden abrir en una pestaña del navegador
+const EXTENSIONES_VISIBLES = ['.pdf', '.png', '.jpg', '.jpeg'];
+
 @Component({
   selector: 'app-detalle-documento',
   standalone: true,
   imports: [FormsModule, DatePipe, RouterLink],
-  styleUrls: ['./detalle-documento.css', './detalle-flujo.css'],
+  styleUrls: ['./detalle-documento.css', './detalle-flujo.css', './detalle-anexos.css'],
   templateUrl: './detalle-documento.html',
 })
 export class DetalleDocumentoComponent implements OnInit {
@@ -48,9 +57,14 @@ export class DetalleDocumentoComponent implements OnInit {
   readonly puedeTrazabilidad = this.auth.tienePermiso('bitacora.consultar');
   readonly puedeRevisar = this.auth.tienePermiso('documentos.aprobar');
   readonly tienePermisoEdicion =
-    this.auth.tienePermiso('documentos.versionar') || this.auth.tienePermiso('documentos.modificar');
+    this.auth.tienePermiso('documentos.versionar') ||
+    this.auth.tienePermiso('documentos.modificar') ||
+    this.auth.tienePermiso('documentos.anexar');
 
   readonly tipos = TIPOS_DOCUMENTO;
+  readonly tiposAnexo = TIPOS_ANEXO;
+  readonly formatosAnexo = FORMATOS_ANEXO;
+  readonly maxAnexos = MAX_ANEXOS_POR_CARGA;
   readonly claseEstado = claseEstado;
   readonly etiqueta = etiquetaAccion;
   readonly clase = claseAccion;
@@ -59,6 +73,7 @@ export class DetalleDocumentoComponent implements OnInit {
 
   documento = signal<Documento | null>(null);
   versiones = signal<Version[]>([]);
+  anexos = signal<Anexo[]>([]);
   trazabilidad = signal<EntradaBitacora[]>([]);
   cargando = signal(true);
   error = signal('');
@@ -93,7 +108,15 @@ export class DetalleDocumentoComponent implements OnInit {
   modalEditar = signal(false);
   guardandoEdicion = signal(false);
   errorEdicion = signal('');
-  edicion = { asunto: '', tipoDocumento: 'Oficio', destinatarioNombre: '', destinatarioDepartamento: '' };
+  edicion = {
+    asunto: '',
+    tipoDocumento: 'Oficio',
+    motivo: '',
+    observacion: '',
+    fechaOficio: '',
+    destinatarioNombre: '',
+    destinatarioDepartamento: '',
+  };
 
   // Ventana: nueva versión
   modalVersion = signal(false);
@@ -101,6 +124,14 @@ export class DetalleDocumentoComponent implements OnInit {
   errorVersion = signal('');
   comentario = '';
   archivo: File | null = null;
+
+  // Ventana: anexos
+  modalAnexos = signal(false);
+  subiendoAnexos = signal(false);
+  errorAnexos = signal('');
+  tipoAnexo = 'Otro';
+  descripcionAnexo = '';
+  archivosAnexo = signal<File[]>([]);
 
   // Ventana: desbloqueo
   modalDesbloqueo = signal(false);
@@ -113,7 +144,7 @@ export class DetalleDocumentoComponent implements OnInit {
     this.cargar();
   }
 
-  // Carga el documento, sus versiones y (si el usuario puede) su trazabilidad.
+  // Carga el documento, sus versiones, sus anexos y (si el usuario puede) su trazabilidad.
   // Con mostrarCarga = false se refresca sin parpadeo.
   cargar(mostrarCarga = true): void {
     if (mostrarCarga) {
@@ -124,10 +155,12 @@ export class DetalleDocumentoComponent implements OnInit {
     forkJoin({
       documento: this.servicio.obtenerDocumento(this.id),
       versiones: this.servicio.listarVersiones(this.id),
+      anexos: this.servicio.listarAnexos(this.id),
     }).subscribe({
-      next: ({ documento, versiones }) => {
+      next: ({ documento, versiones, anexos }) => {
         this.documento.set(documento);
         this.versiones.set(versiones);
+        this.anexos.set(anexos);
         this.cargando.set(false);
         this.cargarTrazabilidad();
       },
@@ -148,7 +181,7 @@ export class DetalleDocumentoComponent implements OnInit {
     });
   }
 
-  // ---------- Ver y descargar ----------
+  // ---------- Ver y descargar versiones ----------
 
   verVersion(version: Version): void {
     // La ventana se abre al instante (dentro del clic) para que el navegador no la bloquee
@@ -175,16 +208,50 @@ export class DetalleDocumentoComponent implements OnInit {
   descargar(version: Version): void {
     this.servicio.descargarVersion(this.id, version.numero, 'descargar').subscribe({
       next: (blob) => {
-        const url = URL.createObjectURL(blob);
-        const enlace = document.createElement('a');
-        enlace.href = url;
-        enlace.download = version.nombreOriginal;
-        enlace.click();
-        setTimeout(() => URL.revokeObjectURL(url), 1000);
+        this.guardarArchivo(blob, version.nombreOriginal);
         this.cargarTrazabilidad();
       },
       error: async (err) => {
         this.mostrar('error', await mensajeDeError(err, 'No se pudo descargar el documento.'));
+        this.cargar(false);
+      },
+    });
+  }
+
+  // ---------- Ver y descargar anexos ----------
+
+  puedeVerAnexo(anexo: Anexo): boolean {
+    return EXTENSIONES_VISIBLES.includes(anexo.extension);
+  }
+
+  verAnexo(anexo: Anexo): void {
+    const ventana = window.open('', '_blank');
+    if (!ventana) {
+      this.mostrar('error', 'El navegador bloqueó la ventana emergente. Permítala e intente de nuevo.');
+      return;
+    }
+
+    this.servicio.descargarAnexo(this.id, anexo._id, 'ver').subscribe({
+      next: (blob) => {
+        ventana.location.href = URL.createObjectURL(blob);
+        this.cargarTrazabilidad();
+      },
+      error: async (err) => {
+        ventana.close();
+        this.mostrar('error', await mensajeDeError(err, 'No se pudo abrir el anexo.'));
+        this.cargar(false); // por si el servidor lo bloqueó
+      },
+    });
+  }
+
+  descargarAnexo(anexo: Anexo): void {
+    this.servicio.descargarAnexo(this.id, anexo._id, 'descargar').subscribe({
+      next: (blob) => {
+        this.guardarArchivo(blob, anexo.nombreOriginal);
+        this.cargarTrazabilidad();
+      },
+      error: async (err) => {
+        this.mostrar('error', await mensajeDeError(err, 'No se pudo descargar el anexo.'));
         this.cargar(false);
       },
     });
@@ -269,6 +336,9 @@ export class DetalleDocumentoComponent implements OnInit {
     this.edicion = {
       asunto: doc.asunto,
       tipoDocumento: doc.tipoDocumento,
+      motivo: doc.motivo ?? '',
+      observacion: doc.observacion ?? '',
+      fechaOficio: doc.fechaOficio ? doc.fechaOficio.slice(0, 10) : '',
       destinatarioNombre: doc.destinatario.nombre,
       destinatarioDepartamento: doc.destinatario.departamento,
     };
@@ -287,25 +357,44 @@ export class DetalleDocumentoComponent implements OnInit {
       return;
     }
 
+    const destinatario: Persona = {
+      nombre: e.destinatarioNombre.trim(),
+      departamento: e.destinatarioDepartamento.trim(),
+    };
+    const datos: {
+      asunto: string;
+      tipoDocumento: string;
+      observacion: string;
+      destinatario: Persona;
+      motivo?: string;
+      fechaOficio?: string;
+    } = {
+      asunto: e.asunto.trim(),
+      tipoDocumento: e.tipoDocumento,
+      observacion: e.observacion.trim(),
+      destinatario,
+    };
+    // Los documentos antiguos pueden no tener motivo ni fecha: solo se envían si se completaron
+    if (e.motivo.trim()) {
+      datos.motivo = e.motivo.trim();
+    }
+    if (e.fechaOficio) {
+      datos.fechaOficio = e.fechaOficio;
+    }
+
     this.guardandoEdicion.set(true);
-    this.servicio
-      .modificarDocumento(this.id, {
-        asunto: e.asunto.trim(),
-        tipoDocumento: e.tipoDocumento,
-        destinatario: { nombre: e.destinatarioNombre.trim(), departamento: e.destinatarioDepartamento.trim() },
-      })
-      .subscribe({
-        next: (res) => {
-          this.guardandoEdicion.set(false);
-          this.cerrarEditar();
-          this.mostrar('ok', res.mensaje);
-          this.cargar(false);
-        },
-        error: async (err) => {
-          this.guardandoEdicion.set(false);
-          this.errorEdicion.set(await mensajeDeError(err, 'No se pudo actualizar el documento.'));
-        },
-      });
+    this.servicio.modificarDocumento(this.id, datos).subscribe({
+      next: (res) => {
+        this.guardandoEdicion.set(false);
+        this.cerrarEditar();
+        this.mostrar('ok', res.mensaje);
+        this.cargar(false);
+      },
+      error: async (err) => {
+        this.guardandoEdicion.set(false);
+        this.errorEdicion.set(await mensajeDeError(err, 'No se pudo actualizar el documento.'));
+      },
+    });
   }
 
   // ---------- Nueva versión ----------
@@ -353,6 +442,63 @@ export class DetalleDocumentoComponent implements OnInit {
       error: async (err) => {
         this.guardandoVersion.set(false);
         this.errorVersion.set(await mensajeDeError(err, 'No se pudo registrar la nueva versión.'));
+      },
+    });
+  }
+
+  // ---------- Agregar anexos ----------
+
+  abrirModalAnexos(): void {
+    this.tipoAnexo = 'Otro';
+    this.descripcionAnexo = '';
+    this.archivosAnexo.set([]);
+    this.errorAnexos.set('');
+    this.modalAnexos.set(true);
+  }
+
+  cerrarModalAnexos(): void {
+    this.modalAnexos.set(false);
+  }
+
+  alSeleccionarAnexos(evento: Event): void {
+    const input = evento.target as HTMLInputElement;
+    this.archivosAnexo.set(Array.from(input.files ?? []));
+  }
+
+  guardarAnexos(): void {
+    this.errorAnexos.set('');
+    const archivos = this.archivosAnexo();
+
+    if (archivos.length === 0) {
+      this.errorAnexos.set('Seleccione al menos un archivo.');
+      return;
+    }
+    if (archivos.length > MAX_ANEXOS_POR_CARGA) {
+      this.errorAnexos.set(`Solo puede adjuntar hasta ${MAX_ANEXOS_POR_CARGA} archivos por carga.`);
+      return;
+    }
+    const demasiadoGrande = archivos.find((a) => a.size > TAMANO_MAXIMO_BYTES);
+    if (demasiadoGrande) {
+      this.errorAnexos.set(`El archivo "${demasiadoGrande.name}" supera los 20 MB permitidos.`);
+      return;
+    }
+
+    const datos = new FormData();
+    datos.append('tipoAnexo', this.tipoAnexo);
+    datos.append('descripcion', this.descripcionAnexo.trim());
+    archivos.forEach((archivo) => datos.append('archivos', archivo));
+
+    this.subiendoAnexos.set(true);
+    this.servicio.subirAnexos(this.id, datos).subscribe({
+      next: (res) => {
+        this.subiendoAnexos.set(false);
+        this.cerrarModalAnexos();
+        this.mostrar('ok', res.mensaje);
+        this.cargar(false);
+      },
+      error: async (err) => {
+        this.subiendoAnexos.set(false);
+        this.errorAnexos.set(await mensajeDeError(err, 'No se pudieron cargar los anexos.'));
       },
     });
   }
@@ -425,6 +571,15 @@ export class DetalleDocumentoComponent implements OnInit {
 
   hashCorto(hash: string | null): string {
     return hash ? `${hash.slice(0, 16)}…` : '—';
+  }
+
+  private guardarArchivo(blob: Blob, nombre: string): void {
+    const url = URL.createObjectURL(blob);
+    const enlace = document.createElement('a');
+    enlace.href = url;
+    enlace.download = nombre;
+    enlace.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
 
   private mostrar(tipo: 'ok' | 'error', texto: string): void {

@@ -16,6 +16,14 @@ export const ESTADOS_DOCUMENTO: EstadoDocumento[] = [
 
 export const TIPOS_DOCUMENTO = ['Oficio', 'Memorando', 'Resolución', 'Informe Técnico', 'Contrato'];
 
+// Un documento puede tener anexos de distintos tipos documentales
+export const TIPOS_ANEXO = [...TIPOS_DOCUMENTO, 'Factura', 'Certificado', 'Fotografía', 'Otro'];
+
+// Formatos, cantidad y tamaño que acepta el servidor para los anexos
+export const FORMATOS_ANEXO = '.pdf,.png,.jpg,.jpeg,.docx,.xlsx';
+export const MAX_ANEXOS_POR_CARGA = 10;
+export const TAMANO_MAXIMO_BYTES = 20 * 1024 * 1024;
+
 export interface Persona {
   nombre: string;
   departamento: string;
@@ -39,11 +47,17 @@ export interface Transicion {
 export interface AccionesDocumento {
   modificar: boolean;
   versionar: boolean;
+  anexar: boolean;
 }
 
 export interface Documento {
   _id: string;
   codigoTramite: string;
+  // Datos del oficio (los documentos antiguos pueden no tenerlos)
+  numeroOficio?: string;
+  fechaOficio?: string;
+  motivo?: string;
+  observacion?: string;
   tipoDocumento: string;
   asunto: string;
   remitente: Persona;
@@ -73,8 +87,29 @@ export interface Version {
   esActual: boolean;
 }
 
+export interface Anexo {
+  _id: string;
+  nombreOriginal: string;
+  extension: string;
+  tamanoBytes: number;
+  hashArchivo: string;
+  tipoAnexo: string;
+  descripcion: string;
+  creadoPor: { id: string; nombre: string };
+  createdAt: string;
+}
+
 export interface VersionVerificada {
   numero: number;
+  hashAlmacenado: string;
+  hashCalculado: string | null;
+  archivoExiste: boolean;
+  coincide: boolean;
+}
+
+export interface AnexoVerificado {
+  id: string;
+  nombre: string;
   hashAlmacenado: string;
   hashCalculado: string | null;
   archivoExiste: boolean;
@@ -88,12 +123,14 @@ export interface ResultadoVerificacion {
   bloqueado: boolean;
   documento: { _id: string; codigoTramite: string; versionActual: number };
   versiones: VersionVerificada[];
+  anexos?: AnexoVerificado[];
 }
 
 export type AccionBitacora =
   | 'REGISTRO_DOCUMENTO'
   | 'MODIFICACION_DOCUMENTO'
   | 'NUEVA_VERSION'
+  | 'ANEXO_AGREGADO'
   | 'CONSULTA_DOCUMENTO'
   | 'DESCARGA_DOCUMENTO'
   | 'CAMBIO_ESTADO'
@@ -132,6 +169,7 @@ export interface DocumentoAlterado {
   documentoId: string;
   codigoTramite: string;
   versiones: VersionVerificada[];
+  anexos?: AnexoVerificado[];
 }
 
 export interface ResultadoAuditoria {
@@ -139,6 +177,7 @@ export interface ResultadoAuditoria {
   valido: boolean;
   documentosAnalizados: number;
   versionesAnalizadas: number;
+  anexosAnalizados?: number;
   documentosAlterados: DocumentoAlterado[];
   bitacora: { integra: boolean; totalEntradas: number; errores: string[] };
 }
@@ -149,6 +188,7 @@ const ETIQUETAS_ACCION: Record<string, string> = {
   REGISTRO_DOCUMENTO: 'Registro del documento',
   MODIFICACION_DOCUMENTO: 'Modificación de datos',
   NUEVA_VERSION: 'Nueva versión',
+  ANEXO_AGREGADO: 'Anexo agregado',
   CONSULTA_DOCUMENTO: 'Consulta del documento',
   DESCARGA_DOCUMENTO: 'Descarga del documento',
   CAMBIO_ESTADO: 'Cambio de estado',
@@ -255,7 +295,14 @@ export class DocumentoService {
 
   modificarDocumento(
     id: string,
-    datos: { asunto?: string; tipoDocumento?: string; destinatario?: Persona }
+    datos: {
+      asunto?: string;
+      tipoDocumento?: string;
+      motivo?: string;
+      observacion?: string;
+      fechaOficio?: string;
+      destinatario?: Persona;
+    }
   ): Observable<{ mensaje: string; documento: Documento }> {
     return this.http.patch<{ mensaje: string; documento: Documento }>(`${this.url}/${id}`, datos);
   }
@@ -283,6 +330,22 @@ export class DocumentoService {
   // 'ver' registra una consulta; 'descargar' registra una descarga
   descargarVersion(id: string, numero: number, modo: 'ver' | 'descargar'): Observable<Blob> {
     return this.http.get(`${this.url}/${id}/versiones/${numero}/archivo`, {
+      params: { modo },
+      responseType: 'blob',
+    });
+  }
+
+  listarAnexos(id: string): Observable<Anexo[]> {
+    return this.http.get<Anexo[]>(`${this.url}/${id}/anexos`);
+  }
+
+  // Recibe FormData: tipoAnexo, descripcion y uno o varios archivos en el campo "archivos"
+  subirAnexos(id: string, datos: FormData): Observable<{ mensaje: string; anexos: Anexo[] }> {
+    return this.http.post<{ mensaje: string; anexos: Anexo[] }>(`${this.url}/${id}/anexos`, datos);
+  }
+
+  descargarAnexo(id: string, anexoId: string, modo: 'ver' | 'descargar'): Observable<Blob> {
+    return this.http.get(`${this.url}/${id}/anexos/${anexoId}/archivo`, {
       params: { modo },
       responseType: 'blob',
     });

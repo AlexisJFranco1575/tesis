@@ -9,6 +9,10 @@
     }
   </div>
 
+  @if (aviso()) {
+    <div class="aviso ok">{{ aviso() }}</div>
+  }
+
   <!-- Tareas pendientes -->
   @if ((puedeAprobar && pendientesRevision() > 0) || (puedeCorregir && rechazados() > 0)) {
     <div class="avisos">
@@ -27,9 +31,10 @@
     </div>
   }
 
+  <!-- Búsqueda: todos los criterios se combinan -->
   <div class="filters-bar">
     <input type="text" class="search-input" [(ngModel)]="textoBusqueda"
-           placeholder="🔍 Buscar por código, asunto, remitente o hash...">
+           placeholder="🔍 Buscar por código, oficio, asunto, motivo, personas o hash...">
     <select class="filter-select" [(ngModel)]="filtroDepartamento">
       <option value="">Todos los departamentos</option>
       @for (d of departamentos(); track d) {
@@ -42,7 +47,43 @@
         <option [value]="e">{{ e }}</option>
       }
     </select>
+    <button type="button" class="btn-filtros" (click)="alternarFiltros()">
+      {{ filtrosAbiertos() ? 'Menos filtros ▴' : 'Más filtros ▾' }}
+    </button>
   </div>
+
+  @if (filtrosAbiertos()) {
+    <div class="filtros-extra">
+      <div class="campo">
+        <label>Tipo de documento</label>
+        <select [(ngModel)]="filtroTipo">
+          <option value="">Todos</option>
+          @for (t of tipos; track t) {
+            <option [value]="t">{{ t }}</option>
+          }
+        </select>
+      </div>
+      <div class="campo">
+        <label>Fecha del oficio desde</label>
+        <input type="date" [(ngModel)]="fechaDesde">
+      </div>
+      <div class="campo">
+        <label>Fecha del oficio hasta</label>
+        <input type="date" [(ngModel)]="fechaHasta">
+      </div>
+    </div>
+  }
+
+  @if (!cargando() && !errorCarga()) {
+    <div class="resumen-busqueda">
+      <span>
+        <strong>{{ documentosFiltrados().length }}</strong> de {{ documentos().length }} documento(s)
+      </span>
+      @if (hayFiltros()) {
+        <button type="button" class="link-boton" (click)="limpiarFiltros()">Limpiar filtros</button>
+      }
+    </div>
+  }
 
   <div class="table-wrapper">
     @if (cargando()) {
@@ -51,8 +92,8 @@
       <div class="estado-vacio estado-error">{{ errorCarga() }}</div>
     } @else if (documentosFiltrados().length === 0) {
       <div class="estado-vacio">
-        No hay documentos que coincidan.
-        @if (puedeRegistrar) {
+        No se encontraron documentos con esos criterios.
+        @if (!hayFiltros() && puedeRegistrar) {
           Use "+ Cargar Documento" para registrar el primero.
         }
       </div>
@@ -62,8 +103,8 @@
           <tr>
             <th>Código</th>
             <th>Asunto</th>
-            <th>Departamento</th>
-            <th>Fecha / Remitente</th>
+            <th>Remitente → Destinatario</th>
+            <th>Fecha del oficio</th>
             <th>Versión</th>
             <th>Estado</th>
             <th>Acciones</th>
@@ -72,15 +113,27 @@
         <tbody>
           @for (doc of documentosFiltrados(); track doc._id) {
             <tr>
-              <td><span class="code-badge">{{ doc.codigoTramite }}</span></td>
+              <td>
+                <span class="code-badge">{{ doc.codigoTramite }}</span>
+                @if (doc.numeroOficio) {
+                  <br><span class="author-text">Oficio {{ doc.numeroOficio }}</span>
+                }
+              </td>
               <td>
                 <strong>{{ doc.asunto }}</strong><br>
                 <span class="doc-type">{{ doc.tipoDocumento }}</span>
               </td>
-              <td>{{ doc.remitente.departamento }}</td>
               <td>
-                {{ doc.createdAt | date: 'dd MMM yyyy' }}<br>
-                <span class="author-text">{{ doc.remitente.nombre }}</span>
+                {{ doc.remitente.departamento }}<br>
+                <span class="author-text">→ {{ doc.destinatario.departamento }}</span>
+              </td>
+              <td>
+                @if (doc.fechaOficio) {
+                  {{ doc.fechaOficio | date: 'dd MMM yyyy' : 'UTC' }}
+                } @else {
+                  {{ doc.createdAt | date: 'dd MMM yyyy' }}
+                }
+                <br><span class="author-text">{{ doc.remitente.nombre }}</span>
               </td>
               <td><span class="code-badge">v{{ doc.versionActual }}</span></td>
               <td>
@@ -90,7 +143,7 @@
                 }
               </td>
               <td>
-                <button class="btn-icon" type="button" title="Ver detalle y versiones" (click)="verDetalle(doc._id)">🔍</button>
+                <button class="btn-icon" type="button" title="Ver detalle, versiones y anexos" (click)="verDetalle(doc._id)">🔍</button>
               </td>
             </tr>
           }
@@ -104,14 +157,20 @@
   <div class="modal-fondo" (click)="cerrarModal()">
     <div class="modal" (click)="$event.stopPropagation()">
       <div class="modal-encabezado">
-        <h3>Cargar documento</h3>
+        <h3>Registrar documento</h3>
         <button class="btn-cerrar" type="button" (click)="cerrarModal()">✕</button>
       </div>
 
       <form class="modal-cuerpo" (ngSubmit)="guardar()">
+        <p class="nota-registro">El código de trámite lo genera el sistema al guardar.</p>
+
         <div class="campo">
-          <label>Código de trámite</label>
-          <input type="text" name="codigoTramite" [(ngModel)]="formulario.codigoTramite" placeholder="EP-ULEAM-2026-001">
+          <label>Número de oficio</label>
+          <input type="text" name="numeroOficio" [(ngModel)]="formulario.numeroOficio" placeholder="Ej. OF-2026-001">
+        </div>
+        <div class="campo">
+          <label>Fecha del oficio</label>
+          <input type="date" name="fechaOficio" [(ngModel)]="formulario.fechaOficio">
         </div>
         <div class="campo">
           <label>Tipo de documento</label>
@@ -121,9 +180,17 @@
             }
           </select>
         </div>
-        <div class="campo completo">
+        <div class="campo">
           <label>Asunto</label>
           <input type="text" name="asunto" [(ngModel)]="formulario.asunto" placeholder="Ej. Aprobación de presupuesto">
+        </div>
+        <div class="campo completo">
+          <label>Motivo</label>
+          <textarea name="motivo" [(ngModel)]="formulario.motivo" rows="2" placeholder="Razón por la que se emite el documento"></textarea>
+        </div>
+        <div class="campo completo">
+          <label>Observación (opcional)</label>
+          <textarea name="observacion" [(ngModel)]="formulario.observacion" rows="2"></textarea>
         </div>
         <div class="campo">
           <label>Remitente</label>
@@ -144,6 +211,7 @@
         <div class="campo completo">
           <label>Archivo PDF</label>
           <input type="file" name="archivo" accept="application/pdf" (change)="alSeleccionarArchivo($event)">
+          <span class="ayuda">Los anexos se agregan después, desde el detalle del documento.</span>
         </div>
 
         @if (errorFormulario()) {

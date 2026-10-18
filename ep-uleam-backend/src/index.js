@@ -45,10 +45,13 @@ app.use((req, res) => {
     res.status(404).json({ mensaje: 'Ruta no encontrada.' });
 });
 
-// Manejo central de errores (por ejemplo: archivo que no es PDF o demasiado grande)
+// Manejo central de errores (archivo con formato no válido, demasiado grande, demasiados archivos...)
 app.use((err, req, res, next) => {
     if (err.code === 'LIMIT_FILE_SIZE') {
-        return res.status(413).json({ mensaje: 'El archivo supera el tamaño máximo permitido de 20 MB.' });
+        return res.status(413).json({ mensaje: 'Un archivo supera el tamaño máximo permitido de 20 MB.' });
+    }
+    if (err.code === 'LIMIT_FILE_COUNT' || err.code === 'LIMIT_UNEXPECTED_FILE') {
+        return res.status(400).json({ mensaje: 'Solo puede adjuntar hasta 10 archivos por carga.' });
     }
     console.error('Error:', err.message);
     res.status(err.status || 400).json({ mensaje: err.message || 'Error al procesar la solicitud.' });

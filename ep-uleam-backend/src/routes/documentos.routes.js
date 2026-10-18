@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const upload = require('../middlewares/upload.middleware');
+const { cargarAnexos } = require('../middlewares/upload.anexos.middleware');
 const { verificarToken, requierePermiso } = require('../middlewares/auth');
 const {
     crearDocumento,
@@ -11,6 +12,9 @@ const {
     listarVersiones,
     crearVersion,
     descargarVersion,
+    listarAnexos,
+    subirAnexos,
+    descargarAnexo,
     verificarIntegridad,
     desbloquearDocumento
 } = require('../controllers/documento.controller');
@@ -30,6 +34,11 @@ router.post('/:id/estado', requierePermiso('documentos.estado', 'documentos.apro
 router.get('/:id/versiones', requierePermiso('documentos.consultar'), listarVersiones);
 router.post('/:id/versiones', requierePermiso('documentos.versionar'), upload.single('archivo'), crearVersion);
 router.get('/:id/versiones/:numero/archivo', requierePermiso('documentos.descargar'), descargarVersion);
+
+// Anexos (varios archivos por carga)
+router.get('/:id/anexos', requierePermiso('documentos.consultar'), listarAnexos);
+router.post('/:id/anexos', requierePermiso('documentos.anexar'), cargarAnexos, subirAnexos);
+router.get('/:id/anexos/:anexoId/archivo', requierePermiso('documentos.descargar'), descargarAnexo);
 
 // Integridad
 router.post('/:id/verificar', requierePermiso('integridad.verificar'), verificarIntegridad);

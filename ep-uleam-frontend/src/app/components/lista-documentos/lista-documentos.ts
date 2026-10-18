@@ -12,11 +12,23 @@ import {
   mensajeDeError,
 } from '../../services/documento';
 
+// Para comparar textos sin importar mayúsculas ni tildes
+const normalizar = (texto: string): string =>
+  texto.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+
+// Fecha de hoy en formato AAAA-MM-DD (hora local), para el campo de fecha del formulario
+const fechaLocalHoy = (): string => {
+  const hoy = new Date();
+  const mes = String(hoy.getMonth() + 1).padStart(2, '0');
+  const dia = String(hoy.getDate()).padStart(2, '0');
+  return `${hoy.getFullYear()}-${mes}-${dia}`;
+};
+
 @Component({
   selector: 'app-lista-documentos',
   standalone: true,
   imports: [FormsModule, DatePipe],
-  styleUrls: ['./lista-documentos.css', './lista-avisos.css'],
+  styleUrls: ['./lista-documentos.css', './lista-avisos.css', './lista-busqueda.css'],
   templateUrl: './lista-documentos.html',
 })
 export class ListaDocumentosComponent implements OnInit {
@@ -36,11 +48,16 @@ export class ListaDocumentosComponent implements OnInit {
   documentos = signal<Documento[]>([]);
   cargando = signal(true);
   errorCarga = signal('');
+  aviso = signal('');
 
-  // Filtros
+  // Criterios de búsqueda (se combinan entre sí)
   textoBusqueda = signal('');
   filtroDepartamento = signal('');
   filtroEstado = signal('');
+  filtroTipo = signal('');
+  fechaDesde = signal('');
+  fechaHasta = signal('');
+  filtrosAbiertos = signal(false);
 
   // Formulario de registro
   modalAbierto = signal(false);
@@ -49,8 +66,9 @@ export class ListaDocumentosComponent implements OnInit {
   archivo: File | null = null;
   formulario = this.formularioVacio();
 
+  // Departamentos que aparecen como remitente o destinatario
   departamentos = computed(() => {
-    const lista = this.documentos().map((d) => d.remitente.departamento);
+    const lista = this.documentos().flatMap((d) => [d.remitente.departamento, d.destinatario.departamento]);
     return [...new Set(lista)].sort();
   });
 
@@ -58,21 +76,52 @@ export class ListaDocumentosComponent implements OnInit {
   pendientesRevision = computed(() => this.documentos().filter((d) => d.estado === 'En Revisión').length);
   rechazados = computed(() => this.documentos().filter((d) => d.estado === 'Rechazado').length);
 
+  hayFiltros = computed(
+    () =>
+      !!(
+        this.textoBusqueda().trim() ||
+        this.filtroDepartamento() ||
+        this.filtroEstado() ||
+        this.filtroTipo() ||
+        this.fechaDesde() ||
+        this.fechaHasta()
+      )
+  );
+
+  // Todos los criterios ingresados se combinan (CU-11, A2)
   documentosFiltrados = computed(() => {
-    const texto = this.textoBusqueda().trim().toLowerCase();
+    const texto = normalizar(this.textoBusqueda().trim());
     const departamento = this.filtroDepartamento();
     const estado = this.filtroEstado();
+    const tipo = this.filtroTipo();
+    const desde = this.fechaDesde();
+    const hasta = this.fechaHasta();
 
     return this.documentos().filter((d) => {
       const coincideTexto =
         !texto ||
-        d.codigoTramite.toLowerCase().includes(texto) ||
-        d.asunto.toLowerCase().includes(texto) ||
-        d.remitente.nombre.toLowerCase().includes(texto) ||
-        d.hashActual.toLowerCase().includes(texto);
-      const coincideDepartamento = !departamento || d.remitente.departamento === departamento;
+        [
+          d.codigoTramite,
+          d.numeroOficio ?? '',
+          d.asunto,
+          d.motivo ?? '',
+          d.observacion ?? '',
+          d.remitente.nombre,
+          d.destinatario.nombre,
+          d.hashActual,
+        ].some((campo) => normalizar(campo).includes(texto));
+
+      const coincideDepartamento =
+        !departamento || d.remitente.departamento === departamento || d.destinatario.departamento === departamento;
       const coincideEstado = !estado || d.estado === estado;
-      return coincideTexto && coincideDepartamento && coincideEstado;
+      const coincideTipo = !tipo || d.tipoDocumento === tipo;
+
+      // Fecha del oficio; los documentos antiguos usan la fecha de registro
+      const fecha = (d.fechaOficio ?? d.createdAt).slice(0, 10);
+      const coincideDesde = !desde || fecha >= desde;
+      const coincideHasta = !hasta || fecha <= hasta;
+
+      return coincideTexto && coincideDepartamento && coincideEstado && coincideTipo && coincideDesde && coincideHasta;
     });
   });
 
@@ -100,6 +149,19 @@ export class ListaDocumentosComponent implements OnInit {
     this.filtroEstado.set(estado);
   }
 
+  alternarFiltros(): void {
+    this.filtrosAbiertos.update((abierto) => !abierto);
+  }
+
+  limpiarFiltros(): void {
+    this.textoBusqueda.set('');
+    this.filtroDepartamento.set('');
+    this.filtroEstado.set('');
+    this.filtroTipo.set('');
+    this.fechaDesde.set('');
+    this.fechaHasta.set('');
+  }
+
   verDetalle(id: string): void {
     this.router.navigate(['/dashboard/documentos', id]);
   }
@@ -125,8 +187,10 @@ export class ListaDocumentosComponent implements OnInit {
     const f = this.formulario;
 
     const faltanDatos =
-      !f.codigoTramite.trim() ||
+      !f.numeroOficio.trim() ||
+      !f.fechaOficio ||
       !f.asunto.trim() ||
+      !f.motivo.trim() ||
       !f.remitenteNombre.trim() ||
       !f.remitenteDepartamento.trim() ||
       !f.destinatarioNombre.trim() ||
@@ -142,9 +206,12 @@ export class ListaDocumentosComponent implements OnInit {
     }
 
     const datos = new FormData();
-    datos.append('codigoTramite', f.codigoTramite.trim());
+    datos.append('numeroOficio', f.numeroOficio.trim());
+    datos.append('fechaOficio', f.fechaOficio);
     datos.append('tipoDocumento', f.tipoDocumento);
     datos.append('asunto', f.asunto.trim());
+    datos.append('motivo', f.motivo.trim());
+    datos.append('observacion', f.observacion.trim());
     datos.append(
       'remitente',
       JSON.stringify({ nombre: f.remitenteNombre.trim(), departamento: f.remitenteDepartamento.trim() })
@@ -157,9 +224,11 @@ export class ListaDocumentosComponent implements OnInit {
 
     this.guardando.set(true);
     this.documentoService.crearDocumento(datos).subscribe({
-      next: () => {
+      next: (res) => {
         this.guardando.set(false);
         this.cerrarModal();
+        this.aviso.set(res.mensaje);
+        setTimeout(() => this.aviso.set(''), 9000);
         this.cargarDocumentos();
       },
       error: async (err) => {
@@ -173,9 +242,12 @@ export class ListaDocumentosComponent implements OnInit {
   private formularioVacio() {
     const usuario = this.auth.getUsuario();
     return {
-      codigoTramite: '',
+      numeroOficio: '',
+      fechaOficio: fechaLocalHoy(),
       tipoDocumento: 'Oficio',
       asunto: '',
+      motivo: '',
+      observacion: '',
       remitenteNombre: usuario?.nombreCompleto ?? '',
       remitenteDepartamento: usuario?.departamento ?? '',
       destinatarioNombre: '',

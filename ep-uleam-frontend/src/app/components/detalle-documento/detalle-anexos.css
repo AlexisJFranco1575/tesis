@@ -1,0 +1,7 @@
+.cabecera-tarjeta { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 16px; }
+.cabecera-tarjeta h3 { margin: 0; }
+
+.ayuda-formatos { font-size: 12px; color: var(--ep-texto-suave); }
+
+.archivos-seleccionados { margin: 0; padding: 10px 12px 10px 28px; background: var(--ep-azul-fondo-suave); border-radius: 6px; font-size: 13px; color: var(--ep-azul-profundo); }
+.archivos-seleccionados li { margin: 2px 0; }

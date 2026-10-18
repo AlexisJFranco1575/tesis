@@ -1,32 +1,49 @@
 const fs = require('fs');
 const Version = require('../models/Version');
+const Anexo = require('../models/Anexo');
 const { hashArchivo } = require('../utils/hash.service');
 const { registrarAccion } = require('./bitacora.service');
 
-// Compara el hash guardado de cada versión con el hash recalculado de su archivo
+// Compara el hash guardado de un archivo con el hash recalculado de su contenido
+const comprobar = async (ruta, hashAlmacenado) => {
+    const archivoExiste = fs.existsSync(ruta);
+    const hashCalculado = archivoExiste ? await hashArchivo(ruta) : null;
+
+    return {
+        hashAlmacenado,
+        hashCalculado,
+        archivoExiste,
+        coincide: archivoExiste && hashCalculado === hashAlmacenado
+    };
+};
+
 const verificarVersiones = async (versiones) => {
     const resultados = [];
-
     for (const version of versiones) {
-        const archivoExiste = fs.existsSync(version.rutaArchivo);
-        const hashCalculado = archivoExiste ? await hashArchivo(version.rutaArchivo) : null;
+        resultados.push({ numero: version.numero, ...(await comprobar(version.rutaArchivo, version.hashArchivo)) });
+    }
+    return resultados;
+};
 
+const verificarAnexos = async (anexos) => {
+    const resultados = [];
+    for (const anexo of anexos) {
         resultados.push({
-            numero: version.numero,
-            hashAlmacenado: version.hashArchivo,
-            hashCalculado,
-            archivoExiste,
-            coincide: archivoExiste && hashCalculado === version.hashArchivo
+            id: String(anexo._id),
+            nombre: anexo.nombreOriginal,
+            ...(await comprobar(anexo.rutaArchivo, anexo.hashArchivo))
         });
     }
-
     return resultados;
 };
 
 // CU-21: bloquea el documento y registra el incidente en la bitácora
-const gestionarAlteracion = async (documento, resultados, usuario) => {
-    const afectadas = resultados.filter((r) => !r.coincide).map((r) => `v${r.numero}`).join(', ');
-    const detalle = `Hash SHA-256 distinto o archivo ausente en: ${afectadas}`;
+const gestionarAlteracion = async (documento, { versiones = [], anexos = [] }, usuario) => {
+    const afectados = [
+        ...versiones.filter((r) => !r.coincide).map((r) => `v${r.numero}`),
+        ...anexos.filter((r) => !r.coincide).map((r) => `anexo "${r.nombre}"`)
+    ].join(', ');
+    const detalle = `Hash SHA-256 distinto o archivo ausente en: ${afectados}`;
 
     documento.bloqueado = true;
     documento.motivoBloqueo = detalle;
@@ -41,31 +58,35 @@ const gestionarAlteracion = async (documento, resultados, usuario) => {
     });
 };
 
-// CU-20: verifica todas las versiones de un documento
+// CU-20: verifica todas las versiones y todos los anexos de un documento
 const verificarDocumento = async (documento, usuario, { registrarExito = true } = {}) => {
-    const versiones = await Version.find({ documento: documento._id }).sort({ numero: 1 });
+    const [versiones, anexos] = await Promise.all([
+        Version.find({ documento: documento._id }).sort({ numero: 1 }),
+        Anexo.find({ documento: documento._id }).sort({ createdAt: 1 })
+    ]);
 
     // A2: sin hash almacenado no se puede verificar
     if (versiones.length === 0) {
-        return { valido: false, sinHash: true, versiones: [] };
+        return { valido: false, sinHash: true, versiones: [], anexos: [] };
     }
 
-    const resultados = await verificarVersiones(versiones);
-    const valido = resultados.every((r) => r.coincide);
+    const resultadosVersiones = await verificarVersiones(versiones);
+    const resultadosAnexos = await verificarAnexos(anexos);
+    const valido = [...resultadosVersiones, ...resultadosAnexos].every((r) => r.coincide);
 
     if (!valido) {
-        await gestionarAlteracion(documento, resultados, usuario);
+        await gestionarAlteracion(documento, { versiones: resultadosVersiones, anexos: resultadosAnexos }, usuario);
     } else if (registrarExito) {
         await registrarAccion({
             accion: 'VERIFICACION_INTEGRIDAD',
             documento: documento._id,
             codigoTramite: documento.codigoTramite,
             usuario,
-            detalle: `${resultados.length} versión(es) verificada(s): íntegras`
+            detalle: `${resultadosVersiones.length} versión(es) y ${resultadosAnexos.length} anexo(s) verificados: íntegros`
         });
     }
 
-    return { valido, sinHash: false, versiones: resultados };
+    return { valido, sinHash: false, versiones: resultadosVersiones, anexos: resultadosAnexos };
 };
 
-module.exports = { verificarVersiones, gestionarAlteracion, verificarDocumento };
+module.exports = { verificarVersiones, verificarAnexos, gestionarAlteracion, verificarDocumento };

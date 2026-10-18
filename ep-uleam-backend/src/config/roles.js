@@ -8,6 +8,7 @@ const PERMISOS = {
     'documentos.consultar': 'Consultar y buscar documentos',
     'documentos.descargar': 'Ver y descargar archivos',
     'documentos.versionar': 'Crear nuevas versiones',
+    'documentos.anexar': 'Adjuntar anexos a un documento',
     'documentos.modificar': 'Modificar los datos de un documento',
     'documentos.estado': 'Gestionar el estado del documento',
     'documentos.aprobar': 'Revisar, aprobar o rechazar documentos',
@@ -29,6 +30,7 @@ const PERMISOS_PARTICIPANTE = [
     'documentos.consultar',
     'documentos.descargar',
     'documentos.versionar',
+    'documentos.anexar',
     'documentos.modificar',
     'documentos.estado'
 ];

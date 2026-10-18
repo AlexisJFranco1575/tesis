@@ -23,7 +23,10 @@
 
       <div class="cifras">
         <div><strong>{{ r.documentosAnalizados }}</strong><span>Documentos analizados</span></div>
-        <div><strong>{{ r.versionesAnalizadas }}</strong><span>Versiones analizadas</span></div>
+        <div>
+          <strong>{{ r.versionesAnalizadas + (r.anexosAnalizados ?? 0) }}</strong>
+          <span>Archivos analizados ({{ r.versionesAnalizadas }} versiones, {{ r.anexosAnalizados ?? 0 }} anexos)</span>
+        </div>
         <div><strong>{{ r.bitacora.totalEntradas }}</strong><span>Entradas de bitácora</span></div>
         <div>
           <strong [class.texto-ok]="r.bitacora.integra" [class.texto-alerta]="!r.bitacora.integra">
@@ -39,8 +42,9 @@
           @for (d of r.documentosAlterados; track d.documentoId) {
             <li>
               <a [routerLink]="['/dashboard/documentos', d.documentoId]">{{ d.codigoTramite }}</a>
-              — versión(es):
-              @for (v of d.versiones; track v.numero) { <span>v{{ v.numero }} </span> }
+              —
+              @for (v of d.versiones; track v.numero) { <span>versión v{{ v.numero }}; </span> }
+              @for (a of d.anexos ?? []; track a.id) { <span>anexo "{{ a.nombre }}"; </span> }
             </li>
           }
         </ul>
