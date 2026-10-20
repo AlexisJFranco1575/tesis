@@ -8,6 +8,7 @@ services:
       - .env
     volumes:
       - ./src:/usr/src/app/src
+      - ./tests:/usr/src/app/tests
       - ./uploads:/usr/src/app/uploads
     depends_on:
       mongo:

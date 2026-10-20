@@ -3,13 +3,14 @@ const multer = require('multer');
 const crypto = require('crypto');
 const fs = require('fs');
 
-const DIRECTORIO = './uploads';
 const TAMANO_MAXIMO = 20 * 1024 * 1024; // 20 MB
+
+const directorio = () => process.env.UPLOADS_DIR || './uploads';
 
 const storage = multer.diskStorage({
     destination: (req, file, cb) => {
-        fs.mkdirSync(DIRECTORIO, { recursive: true });
-        cb(null, DIRECTORIO);
+        fs.mkdirSync(directorio(), { recursive: true });
+        cb(null, directorio());
     },
     filename: (req, file, cb) => {
         // Nombre generado por el servidor: evita caracteres raros y colisiones

@@ -1,6 +1,8 @@
+// src/routes/authRoutes.js
 const express = require('express');
 const router = express.Router();
 const { verificarSesion } = require('../middlewares/auth');
+const { limiteLogin, limiteRecuperacion, limiteRegistroInicial } = require('../middlewares/limites');
 const {
     login,
     solicitarRecuperacion,
@@ -10,10 +12,10 @@ const {
     registrarAdminInicial
 } = require('../controllers/auth.controller');
 
-// Públicas
-router.post('/login', login);
-router.post('/recuperar', solicitarRecuperacion);
-router.post('/registrar-admin-inicial', registrarAdminInicial);
+// Públicas (con límite de peticiones por IP)
+router.post('/login', limiteLogin, login);
+router.post('/recuperar', limiteRecuperacion, solicitarRecuperacion);
+router.post('/registrar-admin-inicial', limiteRegistroInicial, registrarAdminInicial);
 
 // Requieren sesión (permiten pasar a quien debe cambiar su contraseña temporal)
 router.post('/logout', verificarSesion, cerrarSesion);
