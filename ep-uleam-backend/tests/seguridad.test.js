@@ -44,14 +44,14 @@ describe('Seguridad y acceso (M01 y M02)', () => {
     });
 
     it('rechaza credenciales inválidas e informa los intentos restantes', async () => {
-        const { email } = await nuevoUsuario(admin.token, { departamento: 'Contabilidad', roles: ['Usuario institucional'] });
+        const { email } = await nuevoUsuario(admin.token, { departamento: 'Contabilidad', roles: ['Funcionario'] });
         const r = await api('/auth/login', { metodo: 'POST', cuerpo: { email, password: 'incorrecta1' } });
         assert.equal(r.estado, 401);
         assert.equal(r.datos.intentosRestantes, 2);
     });
 
     it('bloquea la cuenta al tercer intento fallido y la mantiene bloqueada', async () => {
-        const { email, clave } = await nuevoUsuario(admin.token, { departamento: 'Contabilidad', roles: ['Usuario institucional'] });
+        const { email, clave } = await nuevoUsuario(admin.token, { departamento: 'Contabilidad', roles: ['Funcionario'] });
         const intento = () => api('/auth/login', { metodo: 'POST', cuerpo: { email, password: 'incorrecta1' } });
 
         assert.equal((await intento()).estado, 401);
@@ -64,7 +64,7 @@ describe('Seguridad y acceso (M01 y M02)', () => {
     });
 
     it('el administrador desbloquea con una clave temporal y el usuario debe cambiarla', async () => {
-        const { id, email } = await nuevoUsuario(admin.token, { departamento: 'Contabilidad', roles: ['Usuario institucional'] });
+        const { id, email } = await nuevoUsuario(admin.token, { departamento: 'Contabilidad', roles: ['Funcionario'] });
         for (let i = 0; i < 3; i += 1) {
             await api('/auth/login', { metodo: 'POST', cuerpo: { email, password: 'incorrecta1' } });
         }
@@ -95,7 +95,7 @@ describe('Seguridad y acceso (M01 y M02)', () => {
     });
 
     it('rechaza contraseñas débiles al cambiarla', async () => {
-        const u = await usuarioListo(admin.token, { departamento: 'Contabilidad', roles: ['Usuario institucional'] });
+        const u = await usuarioListo(admin.token, { departamento: 'Contabilidad', roles: ['Funcionario'] });
 
         for (const debil of ['corta1', 'sololetrasaquiii', '123456789012']) {
             const r = await api('/auth/cambiar-password', {
@@ -108,7 +108,7 @@ describe('Seguridad y acceso (M01 y M02)', () => {
     });
 
     it('la baja deja sin acceso inmediato a un usuario con sesión abierta', async () => {
-        const u = await usuarioListo(admin.token, { departamento: 'Contabilidad', roles: ['Usuario institucional'] });
+        const u = await usuarioListo(admin.token, { departamento: 'Contabilidad', roles: ['Funcionario'] });
         assert.equal((await api('/documentos', { token: u.token })).estado, 200);
 
         const baja = await api(`/usuarios/${u.id}/baja`, { metodo: 'PATCH', token: admin.token, cuerpo: { motivo: 'Prueba' } });
@@ -120,13 +120,13 @@ describe('Seguridad y acceso (M01 y M02)', () => {
     });
 
     it('niega la gestión de usuarios a quien no tiene el permiso', async () => {
-        const u = await usuarioListo(admin.token, { departamento: 'Contabilidad', roles: ['Usuario institucional'] });
+        const u = await usuarioListo(admin.token, { departamento: 'Contabilidad', roles: ['Funcionario'] });
         assert.equal((await api('/usuarios', { token: u.token })).estado, 403);
         assert.equal((await api('/usuarios')).estado, 401);
     });
 
     it('impide a TIC asignar el rol Superadmin o administrar a un Superadmin', async () => {
-        const tic = await usuarioListo(admin.token, { departamento: 'TIC', roles: ['TIC'] });
+        const tic = await usuarioListo(admin.token, { departamento: 'Tecnologías de la Información', roles: ['TIC'] });
 
         const crear = await api('/usuarios', {
             metodo: 'POST',
@@ -136,7 +136,7 @@ describe('Seguridad y acceso (M01 y M02)', () => {
                 nombres: 'Falso',
                 apellidos: 'Admin',
                 email: 'falso@uleam.edu.ec',
-                departamento: 'TIC',
+                departamento: 'Tecnologías de la Información',
                 roles: ['Superadmin'],
                 password: 'Temporal123'
             }
@@ -153,7 +153,7 @@ describe('Seguridad y acceso (M01 y M02)', () => {
     });
 
     it('la solicitud de recuperación avisa a los administradores', async () => {
-        const { email } = await nuevoUsuario(admin.token, { departamento: 'Contabilidad', roles: ['Usuario institucional'] });
+        const { email } = await nuevoUsuario(admin.token, { departamento: 'Contabilidad', roles: ['Funcionario'] });
 
         const noExiste = await api('/auth/recuperar', { metodo: 'POST', cuerpo: { email: 'noexiste@uleam.edu.ec' } });
         assert.equal(noExiste.estado, 404);
@@ -169,7 +169,7 @@ describe('Seguridad y acceso (M01 y M02)', () => {
     });
 
     it('el cierre de sesión invalida el token', async () => {
-        const u = await usuarioListo(admin.token, { departamento: 'Contabilidad', roles: ['Usuario institucional'] });
+        const u = await usuarioListo(admin.token, { departamento: 'Contabilidad', roles: ['Funcionario'] });
         await ayudas.esperar(10);
 
         const cierre = await api('/auth/logout', { metodo: 'POST', token: u.token, cuerpo: { motivo: 'manual' } });

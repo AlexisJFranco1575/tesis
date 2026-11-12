@@ -9,13 +9,23 @@ const normalizar = (texto = '') =>
         .replace(/\s+/g, ' ')
         .trim();
 
-// Un usuario participa en un documento si lo creó, si su departamento es el remitente o el
-// destinatario, o si tiene permiso para acceder a todos los documentos (Gerencia, Secretaría...)
+// Un usuario participa en un documento si:
+//  - interviene en su trámite (lo creó, o lo recibió, reasignó o informó), o
+//  - el documento NO es confidencial y: su área es remitente o destinatario, o tiene el permiso
+//    de acceder a todos los documentos (Gerencia, Secretaría...).
+// Un documento confidencial solo lo ven quienes intervienen en él.
 const esParticipante = (usuario, documento) => {
-    if (usuario.permisos.includes('documentos.verTodos')) {
+    const involucrados = documento.involucrados || [];
+    if (involucrados.includes(usuario.id)) {
         return true;
     }
     if (documento.creadoPor?.id && documento.creadoPor.id === usuario.id) {
+        return true;
+    }
+    if (documento.confidencial) {
+        return false;
+    }
+    if (usuario.permisos.includes('documentos.verTodos')) {
         return true;
     }
 

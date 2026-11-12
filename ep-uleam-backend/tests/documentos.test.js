@@ -7,7 +7,7 @@ const { api, sha256, contenidoPdf, contenidoPng, registrarDocumento, nuevaVersio
 describe('Operaciones documentales, versiones y anexos (M03 y M04)', () => {
     let admin;
     let ana; // Secretaría
-    let pedro; // Usuario institucional de otra área
+    let pedro; // Funcionario de otra área
     let primero;
     const contenidoUno = contenidoPdf('documento uno');
 
@@ -15,7 +15,7 @@ describe('Operaciones documentales, versiones y anexos (M03 y M04)', () => {
         await ayudas.iniciar();
         admin = await ayudas.crearSuperadmin();
         ana = await ayudas.usuarioListo(admin.token, { departamento: 'Secretaria General', roles: ['Secretaría'] });
-        pedro = await ayudas.usuarioListo(admin.token, { departamento: 'Recursos Humanos', roles: ['Usuario institucional'] });
+        pedro = await ayudas.usuarioListo(admin.token, { departamento: 'Talento Humano', roles: ['Funcionario'] });
     });
 
     after(async () => {
@@ -75,7 +75,7 @@ describe('Operaciones documentales, versiones y anexos (M03 y M04)', () => {
         const cambio = await api(`/documentos/${primero._id}`, {
             metodo: 'PATCH',
             token: ana.token,
-            cuerpo: { destinatario: { nombre: 'Pedro', departamento: 'Recursos Humanos' } }
+            cuerpo: { destinatario: { nombre: 'Pedro', departamento: 'Talento Humano' } }
         });
         assert.equal(cambio.estado, 200);
 

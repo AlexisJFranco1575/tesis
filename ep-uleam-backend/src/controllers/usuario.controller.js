@@ -1,8 +1,19 @@
 const mongoose = require('mongoose');
 const Usuario = require('../models/Usuario');
-const { ROLES, PERMISOS, PERMISOS_POR_ROL, permisosEfectivos } = require('../config/roles');
+const {
+    PERMISOS,
+    PERMISOS_SENSIBLES,
+    listarNombresRoles,
+    existeRol,
+    esRolProtegido,
+    infoRoles,
+    permisosPorRol,
+    permisosEfectivos
+} = require('../config/roles');
 const { registrarAccion } = require('../services/bitacora.service');
+const { resolverArea } = require('../services/catalogo.service');
 const { validarPassword, generarClaveTemporal } = require('../utils/password.util');
+const { bloqueadoHasta, bloqueoVigente } = require('../utils/bloqueo');
 
 // ---------- Utilidades ----------
 
@@ -12,7 +23,13 @@ const actorEsSuperadmin = (req) => req.usuario.roles.includes('Superadmin');
 const textoValido = (v) => typeof v === 'string' && v.trim() !== '';
 const etiquetaDe = (u) => `${nombreDe(u)} (${u.email})`;
 
-const presentar = (usuario) => ({ ...usuario.toJSON(), permisos: permisosEfectivos(usuario) });
+// El estado de bloqueo que se muestra descuenta los bloqueos ya vencidos
+const presentar = (usuario) => ({
+    ...usuario.toJSON(),
+    bloqueado: bloqueoVigente(usuario),
+    bloqueadoHasta: bloqueoVigente(usuario) ? bloqueadoHasta(usuario) : null,
+    permisos: permisosEfectivos(usuario)
+});
 
 const errorServidor = (res, error, contexto) => {
     console.error(`Error al ${contexto}:`, error);
@@ -49,19 +66,21 @@ const quedaOtroSuperadminActivo = async (objetivo) => {
     return otros > 0;
 };
 
-// Nadie puede otorgar roles cuyos permisos él mismo no tiene
+// Los roles protegidos (Superadmin y Gerencia) solo los asigna o quita un Superadmin.
+// El resto de roles se asigna libremente a quien tenga el permiso de gestión.
 const rechazoPorRoles = (req, rolesNuevos, rolesPrevios = []) => {
     if (actorEsSuperadmin(req)) {
         return null;
     }
-    for (const rol of rolesNuevos.filter((r) => !rolesPrevios.includes(r))) {
-        if (rol === 'Superadmin') {
-            return 'Solo un Superadmin puede asignar el rol Superadmin.';
-        }
-        const faltantes = (PERMISOS_POR_ROL[rol] || []).filter((p) => !req.usuario.permisos.includes(p));
-        if (faltantes.length > 0) {
-            return `No puede asignar el rol ${rol}: otorga permisos que usted no posee.`;
-        }
+
+    const agregado = rolesNuevos.find((r) => !rolesPrevios.includes(r) && esRolProtegido(r));
+    if (agregado) {
+        return `Solo un Superadmin puede asignar el rol ${agregado}.`;
+    }
+
+    const quitado = rolesPrevios.find((r) => !rolesNuevos.includes(r) && esRolProtegido(r));
+    if (quitado) {
+        return `Solo un Superadmin puede quitar el rol ${quitado}.`;
     }
     return null;
 };
@@ -71,7 +90,13 @@ const leerLista = (valor) => (Array.isArray(valor) ? [...new Set(valor)] : []);
 // ---------- Catálogo y listado ----------
 
 const obtenerCatalogo = (req, res) => {
-    res.json({ roles: ROLES, permisos: PERMISOS, permisosPorRol: PERMISOS_POR_ROL });
+    res.json({
+        roles: listarNombresRoles(),
+        rolesInfo: infoRoles(),
+        permisos: PERMISOS,
+        permisosSensibles: PERMISOS_SENSIBLES,
+        permisosPorRol: permisosPorRol()
+    });
 };
 
 const listarUsuarios = async (req, res) => {
@@ -87,10 +112,10 @@ const listarUsuarios = async (req, res) => {
 
 const crearUsuario = async (req, res) => {
     try {
-        const { cedula, nombres, apellidos, email, departamento, password } = req.body || {};
+        const { cedula, nombres, apellidos, email, password } = req.body || {};
         const roles = leerLista(req.body?.roles);
 
-        if (![cedula, nombres, apellidos, email, departamento].every(textoValido)) {
+        if (![cedula, nombres, apellidos, email].every(textoValido)) {
             return res.status(400).json({ mensaje: 'Complete todos los datos obligatorios.' });
         }
         if (!/^\d{10}$/.test(cedula.trim())) {
@@ -99,10 +124,16 @@ const crearUsuario = async (req, res) => {
         if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
             return res.status(400).json({ mensaje: 'El correo ingresado no es válido.' });
         }
+
+        const area = await resolverArea(req.body?.departamento);
+        if (!area) {
+            return res.status(400).json({ mensaje: 'Seleccione un área de la lista.' });
+        }
+
         if (roles.length === 0) {
             return res.status(400).json({ mensaje: 'Seleccione al menos un rol.' });
         }
-        if (roles.some((r) => !ROLES.includes(r))) {
+        if (roles.some((r) => !existeRol(r))) {
             return res.status(400).json({ mensaje: 'Alguno de los roles no es válido.' });
         }
         const errorPassword = validarPassword(password);
@@ -119,7 +150,7 @@ const crearUsuario = async (req, res) => {
             nombres: nombres.trim(),
             apellidos: apellidos.trim(),
             email: email.trim().toLowerCase(),
-            departamento: departamento.trim(),
+            departamento: area.nombre,
             password,
             roles,
             debeCambiarPassword: true // deberá cambiarla en su primer acceso
@@ -128,7 +159,7 @@ const crearUsuario = async (req, res) => {
         await registrarAccion({
             accion: 'USUARIO_REGISTRADO',
             usuario: req.usuario,
-            detalle: `${etiquetaDe(usuario)} · Roles: ${roles.join(', ')}`
+            detalle: `${etiquetaDe(usuario)} · Área: ${area.nombre} · Roles: ${roles.join(', ')}`
         });
 
         res.status(201).json({ mensaje: 'Usuario registrado. Deberá cambiar su contraseña temporal al ingresar.', usuario: presentar(usuario) });
@@ -141,6 +172,45 @@ const crearUsuario = async (req, res) => {
             return res.status(400).json({ mensaje: error.message });
         }
         errorServidor(res, error, 'registrar el usuario');
+    }
+};
+
+// ---------- Cambiar el área de un usuario ----------
+
+const cambiarArea = async (req, res) => {
+    try {
+        const usuario = await cargarObjetivo(req, res);
+        if (!usuario) return;
+
+        const rechazo = motivoDeRechazo(req, usuario);
+        if (rechazo) {
+            return res.status(403).json({ mensaje: rechazo });
+        }
+        if (!usuario.estado) {
+            return res.status(409).json({ mensaje: 'El usuario se encuentra inactivo.' });
+        }
+
+        const area = await resolverArea(req.body?.departamento);
+        if (!area) {
+            return res.status(400).json({ mensaje: 'Seleccione un área de la lista.' });
+        }
+        if (area.nombre === usuario.departamento) {
+            return res.status(409).json({ mensaje: 'El usuario ya pertenece a esa área.' });
+        }
+
+        const antes = usuario.departamento;
+        usuario.departamento = area.nombre;
+        await usuario.save();
+
+        await registrarAccion({
+            accion: 'USUARIO_AREA_MODIFICADA',
+            usuario: req.usuario,
+            detalle: `${etiquetaDe(usuario)} · ${antes} → ${area.nombre}`
+        });
+
+        res.json({ mensaje: 'Área actualizada.', usuario: presentar(usuario) });
+    } catch (error) {
+        errorServidor(res, error, 'cambiar el área del usuario');
     }
 };
 
@@ -213,6 +283,45 @@ const reactivarUsuario = async (req, res) => {
     }
 };
 
+// ---------- Desbloqueo manual de una cuenta bloqueada por intentos fallidos ----------
+// No cambia la contraseña: el usuario entra con la que ya tenía.
+
+const desbloquearCuenta = async (req, res) => {
+    try {
+        const usuario = await cargarObjetivo(req, res);
+        if (!usuario) return;
+
+        const rechazo = motivoDeRechazo(req, usuario);
+        if (rechazo) {
+            return res.status(403).json({ mensaje: rechazo });
+        }
+        if (!usuario.estado) {
+            return res.status(409).json({ mensaje: 'El usuario se encuentra inactivo. Reactívelo primero.' });
+        }
+        if (!usuario.bloqueado) {
+            return res.status(409).json({ mensaje: 'La cuenta no está bloqueada.' });
+        }
+
+        usuario.bloqueado = false;
+        usuario.bloqueadoEn = null;
+        usuario.intentosFallidos = 0;
+        await usuario.save();
+
+        await registrarAccion({
+            accion: 'CUENTA_DESBLOQUEADA',
+            usuario: req.usuario,
+            detalle: `${etiquetaDe(usuario)} · desbloqueo manual`
+        });
+
+        res.json({
+            mensaje: 'Cuenta desbloqueada. El usuario puede iniciar sesión con su contraseña actual.',
+            usuario: presentar(usuario)
+        });
+    } catch (error) {
+        errorServidor(res, error, 'desbloquear la cuenta');
+    }
+};
+
 // ---------- CU-06: Gestionar roles ----------
 
 const cambiarRoles = async (req, res) => {
@@ -232,7 +341,7 @@ const cambiarRoles = async (req, res) => {
         if (roles.length === 0) {
             return res.status(400).json({ mensaje: 'Seleccione al menos un rol.' });
         }
-        if (roles.some((r) => !ROLES.includes(r))) {
+        if (roles.some((r) => !existeRol(r))) {
             return res.status(400).json({ mensaje: 'Alguno de los roles no es válido.' });
         }
 
@@ -285,8 +394,13 @@ const cambiarPermisos = async (req, res) => {
         if (extra.some((p) => retirados.includes(p))) {
             return res.status(400).json({ mensaje: 'Un permiso no puede estar agregado y retirado a la vez.' });
         }
-        if (!actorEsSuperadmin(req) && extra.some((p) => !req.usuario.permisos.includes(p))) {
-            return res.status(403).json({ mensaje: 'No puede otorgar permisos que usted no posee.' });
+
+        // Los permisos operativos se otorgan libremente; los sensibles, solo si el actor los posee
+        const noPermitidos = extra.filter((p) => PERMISOS_SENSIBLES.includes(p) && !req.usuario.permisos.includes(p));
+        if (!actorEsSuperadmin(req) && noPermitidos.length > 0) {
+            return res.status(403).json({
+                mensaje: `No puede otorgar permisos sensibles que usted no posee: ${noPermitidos.map((p) => PERMISOS[p]).join(', ')}.`
+            });
         }
 
         usuario.permisosExtra = extra;
@@ -306,7 +420,7 @@ const cambiarPermisos = async (req, res) => {
 };
 
 // ---------- CU-01 (flujo alterno) y CU-02: clave temporal ----------
-// Sirve para recuperar una contraseña y para desbloquear una cuenta bloqueada.
+// Sirve para recuperar una contraseña olvidada. También desbloquea la cuenta.
 
 const generarClave = async (req, res) => {
     try {
@@ -355,8 +469,10 @@ module.exports = {
     obtenerCatalogo,
     listarUsuarios,
     crearUsuario,
+    cambiarArea,
     darDeBaja,
     reactivarUsuario,
+    desbloquearCuenta,
     cambiarRoles,
     cambiarPermisos,
     generarClave

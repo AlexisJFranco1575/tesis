@@ -1,6 +1,5 @@
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
-const { ROLES } = require('../config/roles');
 
 const usuarioSchema = new mongoose.Schema({
     cedula: { type: String, required: true, unique: true, trim: true },
@@ -8,11 +7,11 @@ const usuarioSchema = new mongoose.Schema({
     apellidos: { type: String, required: true, trim: true },
     email: { type: String, required: true, unique: true, lowercase: true, trim: true },
     password: { type: String, required: true },
-    departamento: { type: String, required: true, trim: true },
+    departamento: { type: String, required: true, trim: true }, // nombre del área del catálogo
 
-    // Uno o más roles (RF-04) y ajustes de permisos por usuario (RF-05)
+    // Uno o más roles (RF-04); se validan contra el catálogo de roles al asignarlos
     roles: {
-        type: [{ type: String, enum: ROLES }],
+        type: [String],
         validate: {
             validator: (valor) => Array.isArray(valor) && valor.length > 0,
             message: 'El usuario debe tener al menos un rol.'

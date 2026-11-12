@@ -5,10 +5,16 @@ const mongoose = require('mongoose');
 
 const authRoutes = require('./routes/authRoutes');
 const usuariosRoutes = require('./routes/usuarios.routes');
+const rolesRoutes = require('./routes/roles.routes');
+const areasRoutes = require('./routes/areas.routes');
 const documentosRoutes = require('./routes/documentos.routes');
+const tramitesRoutes = require('./routes/tramites.routes');
+const directorioRoutes = require('./routes/directorio.routes');
 const bitacoraRoutes = require('./routes/bitacora.routes');
 const notificacionesRoutes = require('./routes/notificaciones.routes');
+const pendientesRoutes = require('./routes/pendientes.routes');
 const { limiteGeneral } = require('./middlewares/limites');
+const { asegurarCatalogos } = require('./services/catalogo.service');
 
 const app = express();
 
@@ -38,12 +44,23 @@ app.get('/api/salud', (req, res) => {
 
 app.use('/api', limiteGeneral);
 
+// Antes de atender cualquier petición, los catálogos de roles y áreas deben estar cargados
+app.use('/api', async (req, res, next) => {
+    await asegurarCatalogos();
+    next();
+});
+
 // RUTAS
 app.use('/api/auth', authRoutes);
 app.use('/api/usuarios', usuariosRoutes);
+app.use('/api/roles', rolesRoutes);
+app.use('/api/areas', areasRoutes);
 app.use('/api/documentos', documentosRoutes);
+app.use('/api/tramites', tramitesRoutes);
+app.use('/api/directorio', directorioRoutes);
 app.use('/api/bitacora', bitacoraRoutes);
 app.use('/api/notificaciones', notificacionesRoutes);
+app.use('/api/pendientes', pendientesRoutes);
 
 // Ruta inexistente
 app.use((req, res) => {

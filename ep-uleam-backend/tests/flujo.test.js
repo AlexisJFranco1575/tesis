@@ -6,9 +6,9 @@ const { api, contenidoPdf, contenidoPng, registrarDocumento, nuevaVersion, subir
 
 describe('Flujo documental, revisión de Gerencia y notificaciones (M06)', () => {
     let admin;
-    let ana; // Secretaría: registra y distribuye
+    let ana; // Secretaría: registra y envía
     let gerente; // Gerencia: revisa
-    let pedro; // Usuario institucional del área destinataria
+    let pedro; // Funcionario del área destinataria
     let id;
 
     // Las pruebas siguen el ciclo de vida de un mismo documento, en orden
@@ -17,10 +17,10 @@ describe('Flujo documental, revisión de Gerencia y notificaciones (M06)', () =>
         admin = await ayudas.crearSuperadmin();
         ana = await ayudas.usuarioListo(admin.token, { departamento: 'Secretaria General', roles: ['Secretaría'] });
         gerente = await ayudas.usuarioListo(admin.token, { departamento: 'Gerencia General', roles: ['Gerencia'] });
-        pedro = await ayudas.usuarioListo(admin.token, { departamento: 'Recursos Humanos', roles: ['Usuario institucional'] });
+        pedro = await ayudas.usuarioListo(admin.token, { departamento: 'Talento Humano', roles: ['Funcionario'] });
 
         const r = await registrarDocumento(ana.token, {
-            destinatario: { nombre: 'Pedro', departamento: 'Recursos Humanos' }
+            destinatario: { nombre: 'Pedro', departamento: 'Talento Humano' }
         });
         assert.equal(r.estado, 201, JSON.stringify(r.datos));
         id = r.datos.documento._id;
@@ -100,12 +100,21 @@ describe('Flujo documental, revisión de Gerencia y notificaciones (M06)', () =>
         assert.equal(detalle.datos.revisiones[1].version, 2);
     });
 
-    it('al distribuir, el área destinataria recibe la notificación', async () => {
-        const r = await cambiarEstado(ana.token, id, 'Distribuido');
-        assert.equal(r.estado, 200);
+    it('el paso a Distribuido ya no es un cambio manual: se alcanza al enviar', async () => {
+        const manual = await cambiarEstado(ana.token, id, 'Distribuido');
+        assert.equal(manual.estado, 409);
+
+        const detalle = await api(`/documentos/${id}`, { token: ana.token });
+        assert.equal(detalle.datos.acciones.enviar, true);
+    });
+
+    it('al enviarlo, el documento queda Distribuido y el destinatario recibe la notificación', async () => {
+        const r = await api(`/documentos/${id}/enviar`, { metodo: 'POST', token: ana.token, cuerpo: { para: [pedro.id] } });
+        assert.equal(r.estado, 200, JSON.stringify(r.datos));
+        assert.equal(r.datos.documento.estado, 'Distribuido');
 
         const lista = await api('/notificaciones', { token: pedro.token });
-        assert.ok(lista.datos.notificaciones.some((n) => n.titulo === 'Documento distribuido'));
+        assert.ok(lista.datos.notificaciones.some((n) => n.titulo === 'Nuevo documento recibido'));
     });
 
     it('se puede archivar y recuperar del archivo', async () => {
@@ -113,12 +122,13 @@ describe('Flujo documental, revisión de Gerencia y notificaciones (M06)', () =>
         assert.equal((await cambiarEstado(ana.token, id, 'Generado')).estado, 200);
     });
 
-    it('la bitácora registra cada decisión y cambio de estado', async () => {
+    it('la bitácora registra cada decisión, el envío y los cambios de estado', async () => {
         const bitacora = await api(`/bitacora?documento=${id}&limite=100`, { token: admin.token });
         const acciones = bitacora.datos.map((e) => e.accion);
         assert.ok(acciones.includes('REVISION_RECHAZADA'));
         assert.ok(acciones.includes('REVISION_APROBADA'));
         assert.ok(acciones.includes('CAMBIO_ESTADO'));
+        assert.ok(acciones.includes('DOCUMENTO_ENVIADO'));
     });
 
     it('las notificaciones se pueden marcar como leídas', async () => {

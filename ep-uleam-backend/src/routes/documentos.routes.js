@@ -9,6 +9,7 @@ const {
     obtenerDocumento,
     modificarDocumento,
     cambiarEstado,
+    enviarDocumento,
     listarVersiones,
     crearVersion,
     descargarVersion,
@@ -29,6 +30,9 @@ router.patch('/:id', requierePermiso('documentos.modificar'), modificarDocumento
 
 // Flujo documental: el controlador comprueba el permiso exacto de cada cambio de estado
 router.post('/:id/estado', requierePermiso('documentos.estado', 'documentos.aprobar'), cambiarEstado);
+
+// Envío a otras personas (Para, Con copia)
+router.post('/:id/enviar', requierePermiso('documentos.enviar'), enviarDocumento);
 
 // Versiones
 router.get('/:id/versiones', requierePermiso('documentos.consultar'), listarVersiones);

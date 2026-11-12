@@ -126,7 +126,7 @@ const crearSuperadmin = async () => {
             apellidos: 'Sistema',
             email: EMAIL_ADMIN,
             password: CLAVE_ADMIN,
-            departamento: 'TIC'
+            departamento: 'Tecnologías de la Información'
         }
     });
     assert.equal(r.estado, 201, JSON.stringify(r.datos));

@@ -5,8 +5,10 @@ const {
     obtenerCatalogo,
     listarUsuarios,
     crearUsuario,
+    cambiarArea,
     darDeBaja,
     reactivarUsuario,
+    desbloquearCuenta,
     cambiarRoles,
     cambiarPermisos,
     generarClave
@@ -20,8 +22,10 @@ router.get('/catalogo', requierePermiso(...administra), obtenerCatalogo);
 router.get('/', requierePermiso(...administra), listarUsuarios);
 
 router.post('/', requierePermiso('usuarios.gestionar'), crearUsuario);
+router.patch('/:id/area', requierePermiso('usuarios.gestionar'), cambiarArea);
 router.patch('/:id/baja', requierePermiso('usuarios.gestionar'), darDeBaja);
 router.patch('/:id/reactivar', requierePermiso('usuarios.gestionar'), reactivarUsuario);
+router.post('/:id/desbloquear', requierePermiso('usuarios.gestionar'), desbloquearCuenta);
 router.post('/:id/clave-temporal', requierePermiso('usuarios.gestionar'), generarClave);
 
 router.patch('/:id/roles', requierePermiso('roles.gestionar'), cambiarRoles);

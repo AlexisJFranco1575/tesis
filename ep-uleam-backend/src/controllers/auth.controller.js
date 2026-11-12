@@ -4,6 +4,7 @@ const Usuario = require('../models/Usuario');
 const { registrarAccion } = require('../services/bitacora.service');
 const { armarSesion } = require('../utils/sesion');
 const { validarPassword } = require('../utils/password.util');
+const { bloqueadoHasta, bloqueoVigente, minutosDeBloqueo, textoTiempoRestante } = require('../utils/bloqueo');
 
 const MAX_INTENTOS = 3;
 
@@ -31,9 +32,24 @@ const login = async (req, res) => {
         if (!usuario.estado) {
             return res.status(403).json({ mensaje: 'Cuenta inactiva. Contacte a Gerencia o TIC.' });
         }
+
+        // Bloqueo temporal: se levanta solo cuando se cumple el tiempo
         if (usuario.bloqueado) {
-            return res.status(423).json({
-                mensaje: 'Su cuenta está bloqueada por intentos fallidos. Comuníquese con Gerencia o TIC para recibir una clave temporal.'
+            if (bloqueoVigente(usuario)) {
+                return res.status(423).json({
+                    mensaje: `Su cuenta está bloqueada por intentos fallidos. Se desbloqueará automáticamente ${textoTiempoRestante(usuario)}; también puede pedir ayuda a Gerencia o TIC.`,
+                    bloqueadoHasta: bloqueadoHasta(usuario)
+                });
+            }
+
+            usuario.bloqueado = false;
+            usuario.bloqueadoEn = null;
+            usuario.intentosFallidos = 0;
+            await usuario.save();
+            await registrarAccion({
+                accion: 'CUENTA_DESBLOQUEADA',
+                usuario: armarSesion(usuario),
+                detalle: 'Desbloqueo automático al cumplirse el tiempo de bloqueo'
             });
         }
 
@@ -58,10 +74,11 @@ const login = async (req, res) => {
                 await registrarAccion({
                     accion: 'CUENTA_BLOQUEADA',
                     usuario: sesion,
-                    detalle: `Bloqueo automático tras ${MAX_INTENTOS} intentos fallidos`
+                    detalle: `Bloqueo automático por ${minutosDeBloqueo()} minutos tras ${MAX_INTENTOS} intentos fallidos`
                 });
                 return res.status(423).json({
-                    mensaje: 'Superó los 3 intentos permitidos y su cuenta fue bloqueada. Comuníquese con Gerencia o TIC para recibir una clave temporal.'
+                    mensaje: `Superó los ${MAX_INTENTOS} intentos permitidos y su cuenta se bloqueó por ${minutosDeBloqueo()} minutos. Luego podrá intentarlo de nuevo, o Gerencia y TIC pueden desbloquearla antes.`,
+                    bloqueadoHasta: bloqueadoHasta(usuario)
                 });
             }
 

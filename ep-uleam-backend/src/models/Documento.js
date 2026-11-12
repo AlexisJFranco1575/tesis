@@ -1,6 +1,6 @@
 const mongoose = require('mongoose');
 const { ESTADOS } = require('../config/flujo');
-const { TIPOS_DOCUMENTO } = require('../config/clasificacion');
+const { TIPOS_DOCUMENTO, PRIORIDADES } = require('../config/clasificacion');
 
 // Decisión de Gerencia sobre una versión del documento (RF-18)
 const revisionSchema = new mongoose.Schema({
@@ -31,11 +31,21 @@ const documentoSchema = new mongoose.Schema({
         nombre: { type: String, required: true },
         departamento: { type: String, required: true }
     },
+    // Destinatario principal. Al enviar el documento se actualiza con el primer "Para".
     destinatario: {
         nombre: { type: String, required: true },
-        departamento: { type: String, required: true }
+        departamento: { type: String, required: true },
+        usuario: { type: String, default: '' }
     },
     estado: { type: String, enum: ESTADOS, default: 'Generado' },
+
+    // Trámite
+    prioridad: { type: String, enum: PRIORIDADES, default: 'Normal' },
+    confidencial: { type: Boolean, default: false }, // solo lo ven quienes intervienen
+    fechaLimite: { type: Date, default: null },      // plazo de respuesta
+    referencia: { type: mongoose.Schema.Types.ObjectId, ref: 'Documento', default: null }, // documento al que responde
+    involucrados: { type: [String], default: [] },   // ids de los usuarios que intervienen en el trámite
+    enviadoEn: { type: Date, default: null },
 
     // Decisiones de Gerencia, de la más antigua a la más reciente
     revisiones: { type: [revisionSchema], default: [] },

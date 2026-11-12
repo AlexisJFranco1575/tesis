@@ -3,11 +3,12 @@
 const ESTADOS = ['Generado', 'En Revisión', 'Rechazado', 'Aprobado', 'Distribuido', 'Archivado'];
 
 // estado actual → { estado siguiente: permiso necesario para el cambio }
+// Nota: el paso a "Distribuido" no está aquí; ocurre al ENVIAR el documento (con sus destinatarios).
 const TRANSICIONES = {
     'Generado': { 'En Revisión': 'documentos.estado' },
     'En Revisión': { 'Aprobado': 'documentos.aprobar', 'Rechazado': 'documentos.aprobar' },
     'Rechazado': { 'En Revisión': 'documentos.estado' },
-    'Aprobado': { 'Distribuido': 'documentos.estado', 'Archivado': 'documentos.estado' },
+    'Aprobado': { 'Archivado': 'documentos.estado' },
     'Distribuido': { 'Archivado': 'documentos.estado' },
     'Archivado': { 'Generado': 'documentos.estado' } // recuperar un documento archivado
 };

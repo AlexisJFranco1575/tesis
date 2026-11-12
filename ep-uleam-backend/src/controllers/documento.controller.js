@@ -5,12 +5,17 @@ const Documento = require('../models/Documento');
 const Version = require('../models/Version');
 const Anexo = require('../models/Anexo');
 const Contador = require('../models/Contador');
+const Movimiento = require('../models/Movimiento');
+const Usuario = require('../models/Usuario');
 const { hashArchivo } = require('../utils/hash.service');
 const { esParticipante, transicionesPara } = require('../utils/acceso');
+const { idValido, cargarDocumentoAccesible } = require('../utils/documentoAcceso');
 const { ESTADOS, TRANSICIONES, ESTADOS_EDITABLES } = require('../config/flujo');
-const { TIPOS_ANEXO } = require('../config/clasificacion');
+const { TIPOS_ANEXO, PRIORIDADES, requiereAprobacion } = require('../config/clasificacion');
 const { registrarAccion } = require('../services/bitacora.service');
 const { notificarFlujo } = require('../services/notificacion.service');
+const { resolverArea } = require('../services/catalogo.service');
+const tramiteServicio = require('../services/tramite.service');
 const {
     verificarVersiones,
     verificarAnexos,
@@ -72,10 +77,6 @@ const leerObjeto = (valor) => {
     return valor || null;
 };
 
-const personaValida = (p) =>
-    !!p && typeof p.nombre === 'string' && p.nombre.trim() !== '' &&
-    typeof p.departamento === 'string' && p.departamento.trim() !== '';
-
 const parsearFecha = (valor) => {
     if (!valor) {
         return null;
@@ -84,9 +85,20 @@ const parsearFecha = (valor) => {
     return Number.isNaN(fecha.getTime()) ? null : fecha;
 };
 
+// El plazo vence al terminar el día indicado (hora de Ecuador, UTC-5)
+const parsearPlazo = (valor) => {
+    if (!valor) {
+        return null;
+    }
+    if (/^\d{4}-\d{2}-\d{2}$/.test(String(valor))) {
+        return parsearFecha(`${valor}T23:59:59-05:00`);
+    }
+    return parsearFecha(valor);
+};
+
 const soloFecha = (fecha) => (fecha ? new Date(fecha).toISOString().slice(0, 10) : '');
 
-const idValido = (id) => mongoose.isValidObjectId(id);
+const esVerdadero = (valor) => valor === true || valor === 'true';
 
 const quienHizo = (usuario) => ({ id: String(usuario.id), nombre: usuario.nombreCompleto });
 
@@ -101,32 +113,52 @@ const generarCodigoTramite = async () => {
     return `EP-ULEAM-${anio}-${String(contador.valor).padStart(4, '0')}`;
 };
 
-// Carga el documento de la ruta y comprueba que el usuario participe en él.
-// Si no existe o no tiene acceso, responde y devuelve null.
-const cargarDocumentoAccesible = async (req, res) => {
-    if (!idValido(req.params.id)) {
-        res.status(404).json({ mensaje: 'Documento no encontrado.' });
-        return null;
+// Destinatario principal: una persona del directorio, o un área del catálogo
+const resolverDestinatario = async (entrada) => {
+    if (!entrada || typeof entrada !== 'object') {
+        return { error: 'Indique el destinatario del documento.' };
     }
-    const documento = await Documento.findById(req.params.id);
-    if (!documento) {
-        res.status(404).json({ mensaje: 'Documento no encontrado.' });
-        return null;
+
+    if (entrada.usuario) {
+        if (!mongoose.isValidObjectId(entrada.usuario)) {
+            return { error: 'El destinatario no es válido.' };
+        }
+        const persona = await Usuario.findOne({ _id: entrada.usuario, estado: true });
+        if (!persona) {
+            return { error: 'El destinatario no existe o está inactivo.' };
+        }
+        return {
+            valor: { nombre: `${persona.nombres} ${persona.apellidos}`, departamento: persona.departamento, usuario: String(persona._id) }
+        };
     }
-    if (!esParticipante(req.usuario, documento)) {
-        res.status(403).json({ mensaje: 'No tiene acceso a este documento.' });
-        return null;
+
+    const area = await resolverArea(entrada.departamento);
+    if (!area) {
+        return { error: 'Seleccione el área del destinatario de la lista.' };
     }
-    return documento;
+    const nombre = typeof entrada.nombre === 'string' && entrada.nombre.trim() ? entrada.nombre.trim() : area.nombre;
+    return { valor: { nombre, departamento: area.nombre, usuario: '' } };
 };
 
-// Qué acciones de edición están disponibles para el usuario sobre el documento
+// Por qué un documento no se puede enviar todavía (null si puede enviarse)
+const motivoNoEnviable = (documento) => {
+    if (documento.estado === 'Generado' && requiereAprobacion(documento.tipoDocumento)) {
+        return `Un documento de tipo ${documento.tipoDocumento} debe ser aprobado por Gerencia antes de enviarse. Envíelo primero a revisión.`;
+    }
+    if (documento.estado === 'Generado' || documento.estado === 'Aprobado') {
+        return null;
+    }
+    return `Un documento en estado "${documento.estado}" no puede enviarse.`;
+};
+
+// Qué acciones de edición y envío están disponibles para el usuario sobre el documento
 const accionesPara = (documento, usuario) => {
     const editable = !documento.bloqueado && ESTADOS_EDITABLES.includes(documento.estado);
     return {
         modificar: editable && usuario.permisos.includes('documentos.modificar'),
         versionar: editable && usuario.permisos.includes('documentos.versionar'),
-        anexar: editable && usuario.permisos.includes('documentos.anexar')
+        anexar: editable && usuario.permisos.includes('documentos.anexar'),
+        enviar: !documento.bloqueado && motivoNoEnviable(documento) === null && usuario.permisos.includes('documentos.enviar')
     };
 };
 
@@ -151,6 +183,7 @@ const presentarAnexo = (a) => ({
 });
 
 // ---------- CU-08: Registrar documento (incluye CU-09, CU-10 y CU-19) ----------
+// El remitente es siempre el usuario con sesión iniciada y su área.
 
 const crearDocumento = async (req, res) => {
     const archivo = req.file;
@@ -166,15 +199,38 @@ const crearDocumento = async (req, res) => {
         const motivo = String(req.body.motivo || '').trim();
         const observacion = String(req.body.observacion || '').trim();
         const fechaOficio = parsearFecha(req.body.fechaOficio);
-        const remitente = leerObjeto(req.body.remitente);
-        const destinatario = leerObjeto(req.body.destinatario);
+        const prioridad = req.body.prioridad || 'Normal';
+        const confidencial = esVerdadero(req.body.confidencial);
+        const fechaLimite = parsearPlazo(req.body.fechaLimite);
+        const entradaDestinatario = leerObjeto(req.body.destinatario);
 
         // A1: datos obligatorios
-        if (!numeroOficio || !fechaOficio || !tipoDocumento || !asunto || !motivo || !personaValida(remitente) || !personaValida(destinatario)) {
+        if (!numeroOficio || !fechaOficio || !tipoDocumento || !asunto || !motivo || !entradaDestinatario) {
             borrarArchivo(archivo.path);
             return res.status(400).json({
-                mensaje: 'Faltan datos obligatorios: número de oficio, fecha, tipo, asunto, motivo, remitente y destinatario.'
+                mensaje: 'Faltan datos obligatorios: número de oficio, fecha, tipo, asunto, motivo y destinatario.'
             });
+        }
+        if (!PRIORIDADES.includes(prioridad)) {
+            borrarArchivo(archivo.path);
+            return res.status(400).json({ mensaje: 'La prioridad indicada no es válida.' });
+        }
+
+        const destinatario = await resolverDestinatario(entradaDestinatario);
+        if (destinatario.error) {
+            borrarArchivo(archivo.path);
+            return res.status(400).json({ mensaje: destinatario.error });
+        }
+
+        // Documento al que este responde (opcional): el usuario debe tener acceso a él
+        let referencia = null;
+        if (req.body.referencia) {
+            const original = idValido(req.body.referencia) ? await Documento.findById(req.body.referencia) : null;
+            if (!original || !esParticipante(req.usuario, original)) {
+                borrarArchivo(archivo.path);
+                return res.status(400).json({ mensaje: 'El documento de referencia no existe o no tiene acceso a él.' });
+            }
+            referencia = original._id;
         }
 
         // A2: el número de oficio no puede repetirse
@@ -202,8 +258,13 @@ const crearDocumento = async (req, res) => {
                 observacion,
                 tipoDocumento,
                 asunto,
-                remitente,
-                destinatario,
+                remitente: { nombre: req.usuario.nombreCompleto, departamento: req.usuario.departamento },
+                destinatario: destinatario.valor,
+                prioridad,
+                confidencial,
+                fechaLimite,
+                referencia,
+                involucrados: [req.usuario.id],
                 versionActual: 1,
                 hashActual: hash,
                 creadoPor
@@ -220,6 +281,13 @@ const crearDocumento = async (req, res) => {
                 creadoPor
             });
 
+            await Movimiento.create({
+                documento: documento._id,
+                tipo: 'ELABORACION',
+                de: tramiteServicio.personaDeSesion(req.usuario),
+                comentario: 'Documento elaborado'
+            });
+
             await registrarAccion({
                 accion: 'REGISTRO_DOCUMENTO',
                 documento: documento._id,
@@ -232,6 +300,7 @@ const crearDocumento = async (req, res) => {
             if (documento) {
                 await Documento.deleteOne({ _id: documento._id });
                 await Version.collection.deleteMany({ documento: documento._id });
+                await Movimiento.deleteMany({ documento: documento._id });
             }
             throw error;
         }
@@ -274,7 +343,18 @@ const obtenerDocumento = async (req, res) => {
         const documento = await cargarDocumentoAccesible(req, res);
         if (!documento) return;
 
-        res.json(presentar(documento, req.usuario));
+        // Documento al que responde, solo si el usuario también tiene acceso a él
+        let referenciaDocumento = null;
+        if (documento.referencia) {
+            const original = await Documento.findById(documento.referencia)
+                .select('codigoTramite asunto creadoPor remitente destinatario involucrados confidencial')
+                .lean();
+            if (original && esParticipante(req.usuario, original)) {
+                referenciaDocumento = { _id: original._id, codigoTramite: original.codigoTramite, asunto: original.asunto };
+            }
+        }
+
+        res.json({ ...presentar(documento, req.usuario), referenciaDocumento });
     } catch (error) {
         console.error('Error al obtener el documento:', error);
         res.status(500).json({ mensaje: 'Error interno del servidor.' });
@@ -301,7 +381,7 @@ const modificarDocumento = async (req, res) => {
 
         const cambios = [];
         const { asunto, tipoDocumento, motivo, observacion, fechaOficio } = req.body || {};
-        const destinatario = leerObjeto(req.body?.destinatario);
+        const entradaDestinatario = leerObjeto(req.body?.destinatario);
 
         if (asunto !== undefined) {
             const nuevo = String(asunto).trim();
@@ -349,19 +429,16 @@ const modificarDocumento = async (req, res) => {
             documento.tipoDocumento = tipoDocumento;
         }
 
-        if (destinatario) {
-            if (!personaValida(destinatario)) {
-                return res.status(400).json({ mensaje: 'El destinatario debe tener nombre y departamento.' });
+        if (entradaDestinatario) {
+            const resuelto = await resolverDestinatario(entradaDestinatario);
+            if (resuelto.error) {
+                return res.status(400).json({ mensaje: resuelto.error });
             }
+            const nuevo = resuelto.valor;
             const actual = documento.destinatario;
-            if (destinatario.nombre.trim() !== actual.nombre || destinatario.departamento.trim() !== actual.departamento) {
-                cambios.push(
-                    `destinatario: "${actual.nombre} (${actual.departamento})" → "${destinatario.nombre.trim()} (${destinatario.departamento.trim()})"`
-                );
-                documento.destinatario = {
-                    nombre: destinatario.nombre.trim(),
-                    departamento: destinatario.departamento.trim()
-                };
+            if (nuevo.nombre !== actual.nombre || nuevo.departamento !== actual.departamento) {
+                cambios.push(`destinatario: "${actual.nombre} (${actual.departamento})" → "${nuevo.nombre} (${nuevo.departamento})"`);
+                documento.destinatario = nuevo;
             }
         }
 
@@ -399,7 +476,6 @@ const EVENTOS_FLUJO = {
     'En Revisión': 'ENVIADO_REVISION',
     'Aprobado': 'APROBADO',
     'Rechazado': 'RECHAZADO',
-    'Distribuido': 'DISTRIBUIDO',
     'Archivado': 'ARCHIVADO',
     'Generado': 'RECUPERADO'
 };
@@ -417,6 +493,13 @@ const cambiarEstado = async (req, res) => {
         }
         if (documento.bloqueado) {
             return res.status(423).json({ mensaje: 'El documento está bloqueado por una alerta de alteración.' });
+        }
+
+        // "Distribuido" se alcanza al enviar el documento, indicando sus destinatarios
+        if (nuevo === 'Distribuido') {
+            return res.status(409).json({
+                mensaje: 'Para distribuir un documento use la acción Enviar: allí se indican los destinatarios.'
+            });
         }
 
         // A2: el cambio debe corresponder al flujo documental
@@ -474,6 +557,62 @@ const cambiarEstado = async (req, res) => {
 
     } catch (error) {
         console.error('Error al cambiar el estado:', error);
+        res.status(500).json({ mensaje: 'Error interno del servidor.' });
+    }
+};
+
+// ---------- Enviar el documento (Para, Con copia, plazo, prioridad y confidencialidad) ----------
+
+const enviarDocumento = async (req, res) => {
+    try {
+        const documento = await cargarDocumentoAccesible(req, res);
+        if (!documento) return;
+
+        if (documento.bloqueado) {
+            return res.status(423).json({ mensaje: 'El documento está bloqueado por una alerta de alteración.' });
+        }
+        const motivoNo = motivoNoEnviable(documento);
+        if (motivoNo) {
+            return res.status(409).json({ mensaje: motivoNo });
+        }
+
+        const prioridad = req.body?.prioridad;
+        if (prioridad !== undefined && !PRIORIDADES.includes(prioridad)) {
+            return res.status(400).json({ mensaje: 'La prioridad indicada no es válida.' });
+        }
+
+        const fechaLimite = parsearPlazo(req.body?.fechaLimite);
+        if (req.body?.fechaLimite && !fechaLimite) {
+            return res.status(400).json({ mensaje: 'El plazo no es válido.' });
+        }
+        if (fechaLimite && fechaLimite.getTime() < Date.now()) {
+            return res.status(400).json({ mensaje: 'El plazo no puede estar en el pasado.' });
+        }
+
+        const confidencial = typeof req.body?.confidencial === 'boolean' ? req.body.confidencial : undefined;
+        const comentario = String(req.body?.comentario || '').trim().slice(0, 500);
+
+        const resultado = await tramiteServicio.enviar({
+            documento,
+            actor: req.usuario,
+            para: req.body?.para,
+            copia: req.body?.copia,
+            comentario,
+            fechaLimite,
+            prioridad,
+            confidencial
+        });
+
+        res.json({
+            mensaje: `Documento enviado a ${resultado.totalPara} destinatario(s)${resultado.totalCopia ? ` y ${resultado.totalCopia} con copia` : ''}.`,
+            documento: presentar(documento, req.usuario)
+        });
+
+    } catch (error) {
+        if (error instanceof tramiteServicio.ErrorTramite) {
+            return res.status(error.estado).json({ mensaje: error.message });
+        }
+        console.error('Error al enviar el documento:', error);
         res.status(500).json({ mensaje: 'Error interno del servidor.' });
     }
 };
@@ -787,10 +926,11 @@ const descargarAnexo = async (req, res) => {
 };
 
 // ---------- CU-20 y CU-21: Verificar integridad ----------
+// Alcanza también a los documentos confidenciales: solo se muestran hashes, nunca el contenido.
 
 const verificarIntegridad = async (req, res) => {
     try {
-        const documento = await cargarDocumentoAccesible(req, res);
+        const documento = await cargarDocumentoAccesible(req, res, { paraIntegridad: true });
         if (!documento) return;
 
         const resultado = await verificarDocumento(documento, req.usuario);
@@ -833,7 +973,7 @@ const desbloquearDocumento = async (req, res) => {
             return res.status(400).json({ mensaje: 'Debe indicar el motivo del desbloqueo.' });
         }
 
-        const documento = await cargarDocumentoAccesible(req, res);
+        const documento = await cargarDocumentoAccesible(req, res, { paraIntegridad: true });
         if (!documento) return;
 
         if (!documento.bloqueado) {
@@ -881,6 +1021,7 @@ module.exports = {
     obtenerDocumento,
     modificarDocumento,
     cambiarEstado,
+    enviarDocumento,
     listarVersiones,
     crearVersion,
     descargarVersion,
