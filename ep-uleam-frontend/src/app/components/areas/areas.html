@@ -1,0 +1,160 @@
+<div class="module-container">
+  <div class="module-header">
+    <div class="title-section">
+      <h2>Áreas</h2>
+      <p>Estructura de la institución: áreas, subáreas y unidades de negocio</p>
+    </div>
+    @if (puedeGestionar) {
+      <button class="btn-new" type="button" (click)="abrirNueva()">+ Nueva área</button>
+    }
+  </div>
+
+  @if (aviso(); as a) {
+    <div class="aviso" [class.ok]="a.tipo === 'ok'" [class.error]="a.tipo === 'error'">{{ a.texto }}</div>
+  }
+
+  <div class="nota-areas">
+    El área de cada usuario determina qué documentos ve: los de su área, como remitente o destinatario.
+    Si renombra un área, se actualizan también sus usuarios y los documentos que la mencionan.
+  </div>
+
+  <div class="table-wrapper">
+    @if (cargando()) {
+      <div class="estado-vacio">Cargando áreas...</div>
+    } @else if (errorCarga()) {
+      <div class="estado-vacio estado-error">{{ errorCarga() }}</div>
+    } @else {
+      <div class="tabla-scroll">
+        <table class="modern-table">
+          <thead>
+            <tr>
+              <th>Área</th>
+              <th>Siglas</th>
+              <th>Tipo</th>
+              <th>Usuarios</th>
+              <th>Estado</th>
+              <th>Acciones</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (a of areas(); track a._id) {
+              <tr [class.fila-inactiva]="!a.activa">
+                <td>
+                  <span class="sangria" [style.padding-left.px]="a.nivel * 22">
+                    @if (a.nivel > 0) {
+                      <span class="rama">↳</span>
+                    }
+                    <strong>{{ a.nombre }}</strong>
+                  </span>
+                </td>
+                <td>{{ a.siglas || '—' }}</td>
+                <td>
+                  @if (a.tipo === 'unidad') {
+                    <span class="insignia info">Unidad de negocio</span>
+                  } @else {
+                    <span class="insignia rol">Área</span>
+                  }
+                </td>
+                <td>{{ a.usuarios }}</td>
+                <td>
+                  @if (a.activa) {
+                    <span class="insignia ok">Activa</span>
+                  } @else {
+                    <span class="insignia neutra">Inactiva</span>
+                  }
+                </td>
+                <td class="celda-acciones">
+                  @if (puedeGestionar) {
+                    <button class="btn-icon" type="button" title="Editar" (click)="abrirEditar(a)">✎</button>
+                    <button class="btn-icon" type="button" [title]="a.activa ? 'Desactivar' : 'Activar'" (click)="alternarActiva(a)">
+                      {{ a.activa ? '⏸' : '▶' }}
+                    </button>
+                    @if (!a.usuarios && !a.hijos) {
+                      <button class="btn-icon" type="button" title="Eliminar" (click)="abrirEliminar(a)">🗑️</button>
+                    }
+                  }
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  </div>
+</div>
+
+<!-- Ventana: crear o editar un área -->
+@if (modal() === 'formulario') {
+  <div class="modal-fondo" (click)="cerrarModal()">
+    <div class="modal" (click)="$event.stopPropagation()">
+      <div class="modal-encabezado">
+        <h3>{{ seleccionada() ? 'Editar área' : 'Nueva área' }}</h3>
+        <button class="btn-cerrar" type="button" (click)="cerrarModal()">✕</button>
+      </div>
+
+      <form class="modal-cuerpo columna" (ngSubmit)="guardar()">
+        <div class="campo">
+          <label>Nombre</label>
+          <input type="text" name="nombre" [(ngModel)]="nombre" maxlength="80" placeholder="Ej. Tesorería">
+        </div>
+        <div class="fila-doble">
+          <div class="campo">
+            <label>Siglas (opcional)</label>
+            <input type="text" name="siglas" [(ngModel)]="siglas" maxlength="12" placeholder="Ej. TES">
+          </div>
+          <div class="campo">
+            <label>Tipo</label>
+            <select name="tipo" [(ngModel)]="tipo">
+              <option value="area">Área</option>
+              <option value="unidad">Unidad de negocio</option>
+            </select>
+          </div>
+        </div>
+        <div class="campo">
+          <label>Área superior</label>
+          <select name="padre" [(ngModel)]="padre">
+            <option value="">Ninguna (nivel principal)</option>
+            @for (o of opcionesPadre(); track o._id) {
+              <option [value]="o._id">{{ etiquetaDeArea(o) }}</option>
+            }
+          </select>
+        </div>
+
+        @if (errorModal()) {
+          <div class="modal-error">{{ errorModal() }}</div>
+        }
+
+        <div class="modal-pie">
+          <button class="btn-secundario" type="button" (click)="cerrarModal()">Cancelar</button>
+          <button class="btn-new" type="submit" [disabled]="procesando()">
+            {{ procesando() ? 'Guardando...' : 'Guardar área' }}
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+}
+
+<!-- Ventana: eliminar -->
+@if (modal() === 'eliminar' && seleccionada(); as a) {
+  <div class="modal-fondo" (click)="cerrarModal()">
+    <div class="modal" (click)="$event.stopPropagation()">
+      <div class="modal-encabezado">
+        <h3>Eliminar {{ a.nombre }}</h3>
+        <button class="btn-cerrar" type="button" (click)="cerrarModal()">✕</button>
+      </div>
+      <div class="modal-cuerpo columna">
+        <p>Se eliminará el área. No tiene usuarios ni subáreas. Si algún documento la menciona, el sistema no permitirá eliminarla y podrá desactivarla.</p>
+        @if (errorModal()) {
+          <div class="modal-error">{{ errorModal() }}</div>
+        }
+        <div class="modal-pie">
+          <button class="btn-secundario" type="button" (click)="cerrarModal()">Cancelar</button>
+          <button class="btn-peligro" type="button" [disabled]="procesando()" (click)="confirmarEliminar()">
+            {{ procesando() ? 'Eliminando...' : 'Eliminar área' }}
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+}

@@ -15,7 +15,7 @@ const documentoDePrueba: Documento = {
   observacion: '',
   tipoDocumento: 'Oficio',
   asunto: 'Aprobación de presupuesto',
-  remitente: { nombre: 'Admin Sistema', departamento: 'TIC' },
+  remitente: { nombre: 'Admin Sistema', departamento: 'Tecnologías de la Información' },
   destinatario: { nombre: 'Gerencia', departamento: 'Gerencia General' },
   estado: 'Generado',
   versionActual: 1,
@@ -113,5 +113,31 @@ describe('DetalleDocumentoComponent', () => {
     component.archivosAnexo.set(demasiados);
     component.guardarAnexos();
     expect(component.errorAnexos()).toContain('hasta 10 archivos');
+  });
+
+  it('al editar, el destinatario se elige de la lista de áreas y exige un área', () => {
+    cargarTodo();
+
+    component.abrirEditar();
+    http.expectOne(`${API_URL}/areas`).flush([]);
+    http.expectOne(`${API_URL}/directorio`).flush([]);
+
+    expect(component.areaEdicion()).toBe('Gerencia General');
+
+    component.cambiarAreaEdicion('');
+    component.guardarEdicion();
+    expect(component.errorEdicion()).toBe('Seleccione el área del destinatario.');
+  });
+
+  it('exige un asunto al editar', () => {
+    cargarTodo();
+
+    component.abrirEditar();
+    http.expectOne(`${API_URL}/areas`).flush([]);
+    http.expectOne(`${API_URL}/directorio`).flush([]);
+
+    component.edicion.asunto = '   ';
+    component.guardarEdicion();
+    expect(component.errorEdicion()).toBe('El asunto no puede quedar vacío.');
   });
 });

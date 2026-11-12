@@ -1,0 +1,294 @@
+<div class="tarjeta">
+  <div class="cabecera">
+    <h3>Trámite</h3>
+    <div class="botones">
+      @if (documento().acciones?.enviar) {
+        <button class="btn-primario" type="button" (click)="abrir('enviar')">📤 Enviar</button>
+      }
+      @if (acciones()?.responder) {
+        <a class="btn-secundario enlace-boton" routerLink="/dashboard/documentos/nuevo" [queryParams]="{ responde: documento()._id }">↩ Responder</a>
+      }
+      @if (acciones()?.reasignar) {
+        <button class="btn-secundario" type="button" (click)="abrir('reasignar')">🔁 Reasignar</button>
+      }
+      @if (acciones()?.informar) {
+        <button class="btn-secundario" type="button" (click)="abrir('informar')">ℹ️ Informar</button>
+      }
+      @if (acciones()?.archivar) {
+        <button class="btn-secundario" type="button" (click)="abrir('archivar')">🗄️ Archivar</button>
+      }
+      @if (acciones()?.restaurar) {
+        <button class="btn-secundario" type="button" (click)="abrir('restaurar')">↩ Restaurar</button>
+      }
+    </div>
+  </div>
+
+  @if (mensaje(); as m) {
+    <div class="aviso" [class.ok]="m.tipo === 'ok'" [class.error]="m.tipo === 'error'">{{ m.texto }}</div>
+  }
+
+  @if (esperaAprobacion()) {
+    <div class="nota">
+      Este documento es de tipo <strong>{{ documento().tipoDocumento }}</strong>: debe ser <strong>aprobado por Gerencia</strong>
+      antes de enviarse. Use «Enviar a revisión» en el flujo documental; al aprobarse, aparecerá aquí el botón Enviar.
+    </div>
+  }
+
+  @if (cargando()) {
+    <p class="sub">Cargando trámite...</p>
+  } @else if (errorCarga()) {
+    <p class="error-texto">{{ errorCarga() }}</p>
+  } @else if (detalle(); as d) {
+
+    <!-- Cómo llegó el documento al usuario -->
+    @if (d.miTramite; as t) {
+      <div class="mi-tramite" [class.vencido]="t.vencido">
+        <div class="fila-datos">
+          <div>
+            <span class="rotulo">Usted lo recibió como</span>
+            <strong>{{ etiquetaTipo(t.tipo) }}</strong>
+          </div>
+          <div>
+            <span class="rotulo">De</span>
+            <strong>{{ t.de.nombre }}</strong>
+            <span class="sub">{{ t.de.departamento }}</span>
+          </div>
+          <div>
+            <span class="rotulo">Estado</span>
+            <span class="insignia" [class.ok]="t.estado === 'leido' || t.estado === 'respondido'" [class.alerta]="t.estado === 'pendiente'">{{ etiquetaEstado(t.estado) }}</span>
+          </div>
+          @if (t.fechaLimite) {
+            @let s = semaforo(t.fechaLimite, t.estado);
+            <div>
+              <span class="rotulo">Plazo</span>
+              <span class="semaforo" [class]="'semaforo ' + s.clase">{{ s.texto }}</span>
+            </div>
+          }
+        </div>
+        @if (t.comentario) {
+          <p class="comentario">💬 «{{ t.comentario }}»</p>
+        }
+        @if (t.estado === 'archivado') {
+          <p class="comentario">🗄️ Archivado el {{ t.fechaArchivo | date: 'dd MMM yyyy' }}: {{ t.comentarioArchivo }}</p>
+        }
+      </div>
+    }
+
+    <!-- Destinatarios y acuse de lectura -->
+    @if (d.destinatarios.length > 0) {
+      <h4>Destinatarios y acuse de lectura</h4>
+      <div class="tabla-scroll">
+        <table class="tabla">
+          <thead>
+            <tr><th>Tipo</th><th>Destinatario</th><th>Área</th><th>Lectura</th></tr>
+          </thead>
+          <tbody>
+            @for (x of d.destinatarios; track $index) {
+              <tr>
+                <td>{{ x.tipo === 'para' ? 'Para' : 'Con copia' }}</td>
+                <td><strong>{{ x.nombre }}</strong></td>
+                <td>{{ x.departamento }}</td>
+                <td>
+                  @if (x.fechaLectura) {
+                    <span class="insignia ok">Leído el {{ x.fechaLectura | date: 'dd MMM yyyy, HH:mm' }}</span>
+                  } @else {
+                    <span class="insignia neutra">Sin leer</span>
+                  }
+                  @if (x.estado === 'respondido') {
+                    <span class="insignia info">Respondido</span>
+                  }
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+
+    <!-- Hoja de ruta -->
+    <h4>Recorrido del documento</h4>
+    @if (d.recorrido.length === 0) {
+      <p class="sub">Aún no hay movimientos.</p>
+    } @else {
+      <ul class="recorrido">
+        @for (m of d.recorrido; track m._id) {
+          <li class="paso">
+            <div class="paso-cabecera">
+              <strong>{{ etiquetaMovimiento(m.tipo) }}</strong>
+              <span class="sub">{{ m.fecha | date: 'dd MMM yyyy, HH:mm' }}</span>
+              @if (m.dias > 0) {
+                <span class="dias">+{{ m.dias }} {{ m.dias === 1 ? 'día' : 'días' }}</span>
+              }
+            </div>
+            <div class="paso-detalle">
+              {{ m.de.nombre }} <span class="sub">({{ m.de.departamento }})</span>
+              @if (m.para.length > 0) {
+                → {{ nombresDe(m) }}
+              }
+            </div>
+            @if (m.comentario) {
+              <div class="paso-comentario">{{ m.comentario }}</div>
+            }
+          </li>
+        }
+      </ul>
+    }
+  }
+</div>
+
+<!-- Ventana: enviar -->
+@if (modal() === 'enviar') {
+  <div class="modal-fondo" (click)="cerrar()">
+    <div class="modal modal-ancho" (click)="$event.stopPropagation()">
+      <div class="modal-encabezado">
+        <h3>Enviar documento</h3>
+        <button class="btn-cerrar" type="button" (click)="cerrar()">✕</button>
+      </div>
+      <form class="modal-cuerpo" (ngSubmit)="confirmarEnviar()">
+        <app-selector-personas titulo="Para (obligatorio)" [(seleccion)]="para" [excluir]="[yoId]" />
+        <app-selector-personas titulo="Con copia (opcional)" [(seleccion)]="copia" [excluir]="[yoId]" />
+
+        <div class="fila-doble">
+          <div class="campo">
+            <label>Prioridad</label>
+            <select name="prioridad" [(ngModel)]="envio.prioridad">
+              @for (p of prioridades; track p) {
+                <option [value]="p">{{ p }}</option>
+              }
+            </select>
+          </div>
+          <div class="campo">
+            <label>Plazo de respuesta (opcional)</label>
+            <input type="date" name="fechaLimite" [(ngModel)]="envio.fechaLimite" [min]="hoy">
+          </div>
+        </div>
+
+        <label class="casilla">
+          <input type="checkbox" name="confidencial" [(ngModel)]="envio.confidencial">
+          🔒 Documento confidencial (solo lo verán quienes intervienen)
+        </label>
+
+        <div class="campo">
+          <label>Comentario para los destinatarios (opcional)</label>
+          <textarea name="comentario" [(ngModel)]="envio.comentario" rows="2" maxlength="500"></textarea>
+        </div>
+
+        @if (errorModal()) {
+          <div class="modal-error">{{ errorModal() }}</div>
+        }
+        <div class="modal-pie">
+          <button class="btn-secundario" type="button" (click)="cerrar()">Cancelar</button>
+          <button class="btn-primario" type="submit" [disabled]="procesando()">{{ procesando() ? 'Enviando...' : 'Enviar' }}</button>
+        </div>
+      </form>
+    </div>
+  </div>
+}
+
+<!-- Ventana: reasignar -->
+@if (modal() === 'reasignar') {
+  <div class="modal-fondo" (click)="cerrar()">
+    <div class="modal modal-ancho" (click)="$event.stopPropagation()">
+      <div class="modal-encabezado">
+        <h3>Reasignar documento</h3>
+        <button class="btn-cerrar" type="button" (click)="cerrar()">✕</button>
+      </div>
+      <form class="modal-cuerpo" (ngSubmit)="confirmarReasignar()">
+        <p class="sub">El documento pasará a la bandeja de las personas que elija y saldrá de la suya (quedará en «Reasignados»).</p>
+        <app-selector-personas titulo="Reasignar a" [(seleccion)]="para" [excluir]="[yoId]" />
+        <div class="campo">
+          <label>Nuevo plazo (opcional)</label>
+          <input type="date" name="fechaLimite" [(ngModel)]="accion.fechaLimite" [min]="hoy">
+        </div>
+        <div class="campo">
+          <label>Indicación (opcional)</label>
+          <textarea name="comentario" [(ngModel)]="accion.comentario" rows="2" maxlength="500" placeholder="Ej. Atender con prioridad"></textarea>
+        </div>
+        @if (errorModal()) {
+          <div class="modal-error">{{ errorModal() }}</div>
+        }
+        <div class="modal-pie">
+          <button class="btn-secundario" type="button" (click)="cerrar()">Cancelar</button>
+          <button class="btn-primario" type="submit" [disabled]="procesando()">{{ procesando() ? 'Reasignando...' : 'Reasignar' }}</button>
+        </div>
+      </form>
+    </div>
+  </div>
+}
+
+<!-- Ventana: informar -->
+@if (modal() === 'informar') {
+  <div class="modal-fondo" (click)="cerrar()">
+    <div class="modal modal-ancho" (click)="$event.stopPropagation()">
+      <div class="modal-encabezado">
+        <h3>Informar a otras personas</h3>
+        <button class="btn-cerrar" type="button" (click)="cerrar()">✕</button>
+      </div>
+      <form class="modal-cuerpo" (ngSubmit)="confirmarInformar()">
+        <p class="sub">Reciben una copia solo para su conocimiento. Usted conserva el documento en su bandeja.</p>
+        <app-selector-personas titulo="Informar a" [(seleccion)]="para" [excluir]="[yoId]" />
+        <div class="campo">
+          <label>Nota (opcional)</label>
+          <textarea name="comentario" [(ngModel)]="accion.comentario" rows="2" maxlength="500"></textarea>
+        </div>
+        @if (errorModal()) {
+          <div class="modal-error">{{ errorModal() }}</div>
+        }
+        <div class="modal-pie">
+          <button class="btn-secundario" type="button" (click)="cerrar()">Cancelar</button>
+          <button class="btn-primario" type="submit" [disabled]="procesando()">{{ procesando() ? 'Enviando...' : 'Informar' }}</button>
+        </div>
+      </form>
+    </div>
+  </div>
+}
+
+<!-- Ventana: archivar -->
+@if (modal() === 'archivar') {
+  <div class="modal-fondo" (click)="cerrar()">
+    <div class="modal" (click)="$event.stopPropagation()">
+      <div class="modal-encabezado">
+        <h3>Archivar documento</h3>
+        <button class="btn-cerrar" type="button" (click)="cerrar()">✕</button>
+      </div>
+      <form class="modal-cuerpo" (ngSubmit)="confirmarArchivar()">
+        <p class="sub">Saldrá de su bandeja y quedará en «Archivados». Podrá restaurarlo cuando lo necesite.</p>
+        <div class="campo">
+          <label>Motivo del archivo</label>
+          <textarea name="comentario" [(ngModel)]="accion.comentario" rows="3" maxlength="500" placeholder="Ej. Trámite concluido"></textarea>
+        </div>
+        @if (errorModal()) {
+          <div class="modal-error">{{ errorModal() }}</div>
+        }
+        <div class="modal-pie">
+          <button class="btn-secundario" type="button" (click)="cerrar()">Cancelar</button>
+          <button class="btn-primario" type="submit" [disabled]="procesando()">{{ procesando() ? 'Archivando...' : 'Archivar' }}</button>
+        </div>
+      </form>
+    </div>
+  </div>
+}
+
+<!-- Ventana: restaurar -->
+@if (modal() === 'restaurar') {
+  <div class="modal-fondo" (click)="cerrar()">
+    <div class="modal" (click)="$event.stopPropagation()">
+      <div class="modal-encabezado">
+        <h3>Restaurar documento</h3>
+        <button class="btn-cerrar" type="button" (click)="cerrar()">✕</button>
+      </div>
+      <div class="modal-cuerpo">
+        <p>El documento volverá a su bandeja de recibidos o informados.</p>
+        @if (errorModal()) {
+          <div class="modal-error">{{ errorModal() }}</div>
+        }
+        <div class="modal-pie">
+          <button class="btn-secundario" type="button" (click)="cerrar()">Cancelar</button>
+          <button class="btn-primario" type="button" [disabled]="procesando()" (click)="confirmarRestaurar()">
+            {{ procesando() ? 'Restaurando...' : 'Restaurar' }}
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+}

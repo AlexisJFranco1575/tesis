@@ -1,0 +1,33 @@
+.cabecera { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
+.cabecera h3 { margin: 0; }
+.botones { display: flex; gap: 8px; flex-wrap: wrap; }
+
+.nota { margin-bottom: 14px; padding: 11px 14px; background: #fffaf0; border: 1px solid #fbd38d; border-left: 5px solid #ed8936; border-radius: 8px; font-size: 13px; color: #744210; line-height: 1.5; }
+.error-texto { color: #c53030; font-size: 14px; }
+
+/* Cómo llegó el documento al usuario */
+.mi-tramite { margin-bottom: 18px; padding: 14px 16px; background: var(--ep-azul-fondo-suave); border-radius: 8px; border-left: 5px solid var(--ep-azul-claro); }
+.mi-tramite.vencido { background: #fff5f5; border-left-color: var(--ep-rojo); }
+.fila-datos { display: flex; flex-wrap: wrap; gap: 14px 32px; }
+.fila-datos > div { display: flex; flex-direction: column; gap: 3px; font-size: 14px; }
+.rotulo { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--ep-azul-principal); }
+.comentario { margin: 10px 0 0; font-size: 13px; color: var(--ep-texto); font-style: italic; }
+
+h4 { margin: 22px 0 10px; font-size: 13px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--ep-azul-principal); }
+
+.tabla-scroll { overflow-x: auto; }
+.tabla { width: 100%; border-collapse: collapse; }
+.tabla th, .tabla td { padding: 10px 12px; text-align: left; border-bottom: 1px solid #edf2f7; font-size: 13px; }
+.tabla th { background: var(--ep-azul-fondo-suave); color: var(--ep-azul-profundo); font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; }
+
+/* Hoja de ruta */
+.recorrido { list-style: none; margin: 0; padding: 0 0 0 22px; border-left: 2px solid #b9cde3; }
+.paso { position: relative; padding: 0 0 16px 16px; }
+.paso::before { content: ''; position: absolute; left: -29px; top: 3px; width: 12px; height: 12px; border-radius: 50%; background: #fff; border: 3px solid var(--ep-azul-medio); }
+.paso-cabecera { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 14px; }
+.dias { padding: 1px 8px; border-radius: 10px; background: #feebc8; color: #744210; font-size: 11px; font-weight: 700; }
+.paso-detalle { margin-top: 3px; font-size: 13px; color: var(--ep-texto); }
+.paso-comentario { margin-top: 4px; font-size: 12px; color: var(--ep-texto-suave); font-style: italic; }
+
+.casilla { display: flex; align-items: center; gap: 8px; font-size: 14px; cursor: pointer; }
+.casilla input { width: 16px; height: 16px; accent-color: var(--ep-azul-medio); }

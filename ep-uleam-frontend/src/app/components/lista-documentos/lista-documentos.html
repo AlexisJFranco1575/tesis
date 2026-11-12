@@ -1,17 +1,13 @@
 <div class="module-container">
   <div class="module-header">
     <div class="title-section">
-      <h2>Repositorio Institucional</h2>
-      <p>Gestión centralizada de la documentación de la EP-ULEAM</p>
+      <h2>Documentos</h2>
+      <p>Búsqueda en todos los documentos en los que usted participa</p>
     </div>
     @if (puedeRegistrar) {
-      <button class="btn-new" type="button" (click)="abrirModal()">+ Cargar Documento</button>
+      <a class="btn-new" routerLink="/dashboard/documentos/nuevo">+ Nuevo documento</a>
     }
   </div>
-
-  @if (aviso()) {
-    <div class="aviso ok">{{ aviso() }}</div>
-  }
 
   <!-- Tareas pendientes -->
   @if ((puedeAprobar && pendientesRevision() > 0) || (puedeCorregir && rechazados() > 0)) {
@@ -94,7 +90,7 @@
       <div class="estado-vacio">
         No se encontraron documentos con esos criterios.
         @if (!hayFiltros() && puedeRegistrar) {
-          Use "+ Cargar Documento" para registrar el primero.
+          Use "+ Nuevo documento" para elaborar el primero.
         }
       </div>
     } @else {
@@ -107,12 +103,11 @@
             <th>Fecha del oficio</th>
             <th>Versión</th>
             <th>Estado</th>
-            <th>Acciones</th>
           </tr>
         </thead>
         <tbody>
           @for (doc of documentosFiltrados(); track doc._id) {
-            <tr>
+            <tr class="fila-click" title="Abrir el documento" (click)="verDetalle(doc._id)">
               <td>
                 <span class="code-badge">{{ doc.codigoTramite }}</span>
                 @if (doc.numeroOficio) {
@@ -122,6 +117,12 @@
               <td>
                 <strong>{{ doc.asunto }}</strong><br>
                 <span class="doc-type">{{ doc.tipoDocumento }}</span>
+                @if (doc.prioridad && doc.prioridad !== 'Normal') {
+                  <span class="badge-prioridad" [class.urgente]="doc.prioridad === 'Urgente'">{{ doc.prioridad }}</span>
+                }
+                @if (doc.confidencial) {
+                  <span class="badge-confidencial">🔒 Confidencial</span>
+                }
               </td>
               <td>
                 {{ doc.remitente.departamento }}<br>
@@ -142,9 +143,6 @@
                   <span class="badge-bloqueado">🔒 Bloqueado</span>
                 }
               </td>
-              <td>
-                <button class="btn-icon" type="button" title="Ver detalle, versiones y anexos" (click)="verDetalle(doc._id)">🔍</button>
-              </td>
             </tr>
           }
         </tbody>
@@ -152,79 +150,3 @@
     }
   </div>
 </div>
-
-@if (modalAbierto()) {
-  <div class="modal-fondo" (click)="cerrarModal()">
-    <div class="modal" (click)="$event.stopPropagation()">
-      <div class="modal-encabezado">
-        <h3>Registrar documento</h3>
-        <button class="btn-cerrar" type="button" (click)="cerrarModal()">✕</button>
-      </div>
-
-      <form class="modal-cuerpo" (ngSubmit)="guardar()">
-        <p class="nota-registro">El código de trámite lo genera el sistema al guardar.</p>
-
-        <div class="campo">
-          <label>Número de oficio</label>
-          <input type="text" name="numeroOficio" [(ngModel)]="formulario.numeroOficio" placeholder="Ej. OF-2026-001">
-        </div>
-        <div class="campo">
-          <label>Fecha del oficio</label>
-          <input type="date" name="fechaOficio" [(ngModel)]="formulario.fechaOficio">
-        </div>
-        <div class="campo">
-          <label>Tipo de documento</label>
-          <select name="tipoDocumento" [(ngModel)]="formulario.tipoDocumento">
-            @for (t of tipos; track t) {
-              <option [value]="t">{{ t }}</option>
-            }
-          </select>
-        </div>
-        <div class="campo">
-          <label>Asunto</label>
-          <input type="text" name="asunto" [(ngModel)]="formulario.asunto" placeholder="Ej. Aprobación de presupuesto">
-        </div>
-        <div class="campo completo">
-          <label>Motivo</label>
-          <textarea name="motivo" [(ngModel)]="formulario.motivo" rows="2" placeholder="Razón por la que se emite el documento"></textarea>
-        </div>
-        <div class="campo completo">
-          <label>Observación (opcional)</label>
-          <textarea name="observacion" [(ngModel)]="formulario.observacion" rows="2"></textarea>
-        </div>
-        <div class="campo">
-          <label>Remitente</label>
-          <input type="text" name="remitenteNombre" [(ngModel)]="formulario.remitenteNombre">
-        </div>
-        <div class="campo">
-          <label>Departamento del remitente</label>
-          <input type="text" name="remitenteDepartamento" [(ngModel)]="formulario.remitenteDepartamento">
-        </div>
-        <div class="campo">
-          <label>Destinatario</label>
-          <input type="text" name="destinatarioNombre" [(ngModel)]="formulario.destinatarioNombre">
-        </div>
-        <div class="campo">
-          <label>Departamento del destinatario</label>
-          <input type="text" name="destinatarioDepartamento" [(ngModel)]="formulario.destinatarioDepartamento">
-        </div>
-        <div class="campo completo">
-          <label>Archivo PDF</label>
-          <input type="file" name="archivo" accept="application/pdf" (change)="alSeleccionarArchivo($event)">
-          <span class="ayuda">Los anexos se agregan después, desde el detalle del documento.</span>
-        </div>
-
-        @if (errorFormulario()) {
-          <div class="modal-error">{{ errorFormulario() }}</div>
-        }
-
-        <div class="modal-pie">
-          <button class="btn-secundario" type="button" (click)="cerrarModal()">Cancelar</button>
-          <button class="btn-new" type="submit" [disabled]="guardando()">
-            {{ guardando() ? 'Guardando...' : 'Guardar y generar hash' }}
-          </button>
-        </div>
-      </form>
-    </div>
-  </div>
-}

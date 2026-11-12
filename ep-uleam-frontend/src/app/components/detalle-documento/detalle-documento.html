@@ -1,5 +1,5 @@
 <div class="pagina">
-  <a class="volver" routerLink="/dashboard/documentos">← Volver a documentos</a>
+  <a class="volver" routerLink="/dashboard/bandejas/recibidos">← Volver a mis bandejas</a>
 
   @if (cargando()) {
     <div class="estado-vacio">Cargando documento...</div>
@@ -17,6 +17,12 @@
             · Oficio {{ doc.numeroOficio }}
           }
           · versión actual v{{ doc.versionActual }}
+          @if (doc.prioridad && doc.prioridad !== 'Normal') {
+            <span class="badge-prioridad" [class.urgente]="doc.prioridad === 'Urgente'">{{ doc.prioridad }}</span>
+          }
+          @if (doc.confidencial) {
+            <span class="badge-confidencial">🔒 Confidencial</span>
+          }
         </p>
       </div>
       <div class="acciones">
@@ -41,6 +47,14 @@
       <div class="aviso" [class.ok]="m.tipo === 'ok'" [class.error]="m.tipo === 'error'">{{ m.texto }}</div>
     }
 
+    <!-- Documento al que responde -->
+    @if (doc.referenciaDocumento; as ref) {
+      <div class="referencia">
+        ↩ En respuesta a
+        <a [routerLink]="['/dashboard/documentos', ref._id]">{{ ref.codigoTramite }}</a> — {{ ref.asunto }}
+      </div>
+    }
+
     <!-- Alerta de bloqueo -->
     @if (doc.bloqueado) {
       <div class="alerta-bloqueo">
@@ -63,7 +77,7 @@
       </div>
     }
 
-    <!-- Flujo documental -->
+    <!-- Flujo documental (revisión de Gerencia) -->
     <div class="tarjeta">
       <h3>Flujo documental</h3>
       <div class="flujo-cabecera">
@@ -90,13 +104,19 @@
       @if (doc.estado === 'En Revisión' && !puedeRevisar) {
         <p class="nota">El documento está en revisión de Gerencia. No puede modificarse hasta que se decida.</p>
       }
-      @if (!doc.bloqueado && tienePermisoEdicion && !doc.acciones?.modificar && !doc.acciones?.versionar && !doc.acciones?.anexar) {
+      @if (doc.estado === 'Aprobado' && doc.acciones?.enviar) {
+        <p class="nota">Gerencia aprobó el documento. Ya puede enviarlo a sus destinatarios desde el panel de trámite.</p>
+      }
+      @if (!doc.bloqueado && tienePermisoEdicion && !doc.acciones?.modificar && !doc.acciones?.versionar && !doc.acciones?.anexar && doc.estado !== 'En Revisión') {
         <p class="nota">Solo se pueden modificar los datos, crear versiones o agregar anexos cuando el documento está en estado Generado o Rechazado.</p>
       }
       @if (!doc.bloqueado && transiciones().length === 0 && doc.estado !== 'En Revisión') {
         <p class="nota">No tiene cambios de estado disponibles para este documento.</p>
       }
     </div>
+
+    <!-- Trámite: enviar, reasignar, informar, archivar, destinatarios y recorrido -->
+    <app-panel-tramite [documento]="doc" (cambio)="alCambiarTramite()" />
 
     <!-- Resultado de la verificación -->
     @if (verificacion(); as v) {
@@ -186,7 +206,15 @@
           <div class="completo"><span class="etiqueta">Observación</span><span>{{ doc.observacion }}</span></div>
         }
         <div><span class="etiqueta">Remitente</span><span>{{ doc.remitente.nombre }} ({{ doc.remitente.departamento }})</span></div>
-        <div><span class="etiqueta">Destinatario</span><span>{{ doc.destinatario.nombre }} ({{ doc.destinatario.departamento }})</span></div>
+        <div><span class="etiqueta">Destinatario principal</span><span>{{ doc.destinatario.nombre }} ({{ doc.destinatario.departamento }})</span></div>
+        <div><span class="etiqueta">Prioridad</span><span>{{ doc.prioridad || 'Normal' }}</span></div>
+        <div><span class="etiqueta">Confidencialidad</span><span>{{ doc.confidencial ? '🔒 Confidencial' : 'Normal' }}</span></div>
+        @if (doc.fechaLimite) {
+          <div><span class="etiqueta">Plazo de respuesta</span><span>{{ doc.fechaLimite | date: 'dd MMM yyyy' }}</span></div>
+        }
+        @if (doc.enviadoEn) {
+          <div><span class="etiqueta">Enviado el</span><span>{{ doc.enviadoEn | date: 'dd MMM yyyy, HH:mm' }}</span></div>
+        }
         <div><span class="etiqueta">Registrado por</span><span>{{ doc.creadoPor.nombre }}</span></div>
         <div><span class="etiqueta">Fecha de registro</span><span>{{ doc.createdAt | date: 'dd MMM yyyy, HH:mm' }}</span></div>
         <div class="completo">
@@ -415,12 +443,22 @@
         </div>
         <div class="fila-doble">
           <div class="campo">
-            <label>Destinatario</label>
-            <input type="text" name="destinatarioNombre" [(ngModel)]="edicion.destinatarioNombre">
+            <label>Dirigido al área</label>
+            <select name="areaEdicion" [ngModel]="areaEdicion()" (ngModelChange)="cambiarAreaEdicion($event)">
+              <option value="">Seleccione un área...</option>
+              @for (o of opcionesArea(); track o.valor) {
+                <option [value]="o.valor">{{ o.etiqueta }}</option>
+              }
+            </select>
           </div>
           <div class="campo">
-            <label>Departamento</label>
-            <input type="text" name="destinatarioDepartamento" [(ngModel)]="edicion.destinatarioDepartamento">
+            <label>Persona (opcional)</label>
+            <select name="personaId" [(ngModel)]="edicion.personaId" [disabled]="!areaEdicion()">
+              <option value="">Cualquier persona del área</option>
+              @for (p of personasDelArea(); track p.id) {
+                <option [value]="p.id">{{ p.nombre }}</option>
+              }
+            </select>
           </div>
         </div>
 

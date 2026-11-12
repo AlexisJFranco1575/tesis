@@ -1,0 +1,8 @@
+.nota-areas { background: #fff; border: 1px solid var(--ep-borde); border-left: 5px solid var(--ep-azul-claro); border-radius: 8px; padding: 12px 18px; margin-bottom: 18px; font-size: 13px; color: var(--ep-texto-suave); line-height: 1.5; }
+
+.sangria { display: inline-flex; align-items: center; gap: 6px; }
+.rama { color: var(--ep-azul-claro); font-weight: 700; }
+
+.fila-doble { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.campo select { padding: 10px 12px; border: 1px solid var(--ep-borde); border-radius: 6px; outline: none; font-size: 14px; background: #fff; transition: all 0.3s; }
+.campo select:focus { border-color: var(--ep-azul-claro); box-shadow: 0 0 0 3px rgba(70, 164, 255, 0.2); }

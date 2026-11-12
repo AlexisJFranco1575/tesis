@@ -1,0 +1,7 @@
+.nota-roles { background: #fff; border: 1px solid var(--ep-borde); border-left: 5px solid var(--ep-azul-claro); border-radius: 8px; padding: 12px 18px; margin-bottom: 18px; font-size: 13px; color: var(--ep-texto-suave); line-height: 1.5; }
+.descripcion { max-width: 380px; font-size: 13px; color: var(--ep-texto-suave); }
+
+.grupo-permisos { margin-top: 10px; padding: 12px 14px; border: 1px solid var(--ep-borde); border-radius: 8px; }
+.grupo-permisos h4 { margin: 0 0 8px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--ep-azul-principal); }
+
+.etiqueta-sensible { margin-left: 6px; padding: 1px 6px; border-radius: 8px; background: #feebc8; color: #744210; font-style: normal; font-size: 10px; font-weight: 700; text-transform: uppercase; }

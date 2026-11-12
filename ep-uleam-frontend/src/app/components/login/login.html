@@ -27,10 +27,7 @@
 
         <div class="input-group">
           <label>Contraseña</label>
-          <div class="input-wrapper">
-            <span class="icon">🔒</span>
-            <input type="password" name="password" [(ngModel)]="credenciales.password" placeholder="••••••••" autocomplete="current-password" required>
-          </div>
+          <app-campo-password [(valor)]="credenciales.password" nombre="password" autocompletar="current-password" />
         </div>
 
         <div class="form-actions">

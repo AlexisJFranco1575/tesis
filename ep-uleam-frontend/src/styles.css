@@ -31,7 +31,16 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-/* Etiqueta de documento bloqueado (se usa en la lista y en el detalle) */
+/* ===== Estados del documento ===== */
+.status-badge { padding: 4px 10px; border-radius: 12px; font-size: 11px; font-weight: 700; text-transform: uppercase; white-space: nowrap; }
+.status-badge.generated { background: var(--ep-azul-fondo-suave); color: var(--ep-azul-medio); }
+.status-badge.review { background: #feebc8; color: #744210; }
+.status-badge.rejected { background: #fed7d7; color: #742a2a; }
+.status-badge.approved { background: #c6f6d5; color: #22543d; }
+.status-badge.distributed { background: #bee3f8; color: #2a4365; }
+.status-badge.archived { background: #e2e8f0; color: #4a5568; }
+
+/* Etiqueta de documento bloqueado */
 .badge-bloqueado {
   display: inline-block;
   margin-left: 6px;
@@ -45,8 +54,77 @@ body {
   border: 1px solid #feb2b2;
 }
 
-/* Colores de los estados del flujo documental.
-   Los estados Aprobado, En Revisión y Archivado se definen en la hoja de cada pantalla. */
-.status-badge.generated { background: var(--ep-azul-fondo-suave); color: var(--ep-azul-medio); }
-.status-badge.rejected { background: #fed7d7; color: #742a2a; }
-.status-badge.distributed { background: #bee3f8; color: #2a4365; }
+/* ===== Menú lateral ===== */
+.badge-menu {
+  margin-left: auto;
+  min-width: 20px;
+  padding: 1px 6px;
+  box-sizing: border-box;
+  border-radius: 10px;
+  background: var(--ep-rojo);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  text-align: center;
+}
+.badge-menu.vencido { margin-left: 6px; background: #fff; color: var(--ep-rojo); }
+.nav-grupo { padding: 16px 25px 6px; font-size: 11px; font-weight: 700; letter-spacing: 0.8px; text-transform: uppercase; color: rgba(255, 255, 255, 0.5); }
+
+/* ===== Trámite: prioridad, confidencial y plazos ===== */
+.badge-prioridad { display: inline-block; margin-left: 6px; padding: 2px 8px; border-radius: 10px; font-size: 10px; font-weight: 700; text-transform: uppercase; background: #feebc8; color: #744210; }
+.badge-prioridad.urgente { background: #fed7d7; color: #742a2a; }
+.badge-confidencial { display: inline-block; margin-left: 6px; padding: 2px 8px; border-radius: 10px; font-size: 10px; font-weight: 700; text-transform: uppercase; background: #e9d8fd; color: #44337a; }
+
+.semaforo { display: inline-block; padding: 3px 10px; border-radius: 12px; font-size: 11px; font-weight: 700; white-space: nowrap; }
+.semaforo.vencido { background: #fed7d7; color: #742a2a; }
+.semaforo.proximo { background: #feebc8; color: #744210; }
+.semaforo.ok { background: #c6f6d5; color: #22543d; }
+.semaforo.sin { background: #edf2f7; color: #718096; }
+
+/* ===== Piezas comunes de interfaz (las usan varias pantallas) ===== */
+.btn-primario, .btn-secundario, .btn-exito, .btn-peligro { border: none; padding: 10px 18px; border-radius: 6px; font-weight: 600; font-size: 14px; cursor: pointer; transition: background 0.3s; }
+.btn-primario { background: var(--ep-azul-medio); color: #fff; }
+.btn-primario:hover { background: var(--ep-azul-profundo); }
+.btn-secundario { background: var(--ep-azul-fondo-suave); color: var(--ep-azul-profundo); }
+.btn-secundario:hover { background: #d4e5f7; }
+.btn-exito { background: #2f855a; color: #fff; }
+.btn-exito:hover { background: #276749; }
+.btn-peligro { background: var(--ep-rojo); color: #fff; }
+.btn-peligro:hover { background: var(--ep-rojo-oscuro); }
+.btn-primario:disabled, .btn-secundario:disabled, .btn-exito:disabled, .btn-peligro:disabled { opacity: 0.55; cursor: not-allowed; }
+.enlace-boton { display: inline-block; text-decoration: none; }
+
+.insignia { display: inline-block; padding: 3px 10px; border-radius: 12px; font-size: 11px; font-weight: 700; background: #e2e8f0; color: #4a5568; }
+.insignia.ok { background: #c6f6d5; color: #22543d; }
+.insignia.alerta { background: #fed7d7; color: #742a2a; }
+.insignia.neutra { background: #e2e8f0; color: #4a5568; }
+.insignia.info { background: #bee3f8; color: #2a4365; }
+.insignia.rol { background: var(--ep-azul-fondo-suave); color: var(--ep-azul-medio); }
+
+.aviso { padding: 12px 16px; border-radius: 8px; margin-bottom: 16px; font-size: 14px; font-weight: 600; }
+.aviso.ok { background: #f0fff4; color: #22543d; border: 1px solid #9ae6b4; }
+.aviso.error { background: #fff5f5; color: #c53030; border: 1px solid #feb2b2; }
+
+.tarjeta { background: #fff; border: 1px solid var(--ep-borde); border-radius: 10px; box-shadow: 0 4px 6px rgba(0, 69, 153, 0.04); padding: 22px 24px; margin-bottom: 20px; }
+.tarjeta h3 { margin: 0 0 16px; color: var(--ep-azul-profundo); font-size: 17px; }
+
+.modal-fondo { position: fixed; inset: 0; background: rgba(0, 40, 85, 0.6); display: flex; align-items: center; justify-content: center; z-index: 1000; padding: 20px; }
+.modal { background: #fff; border-radius: 12px; border-top: 4px solid var(--ep-cian); width: 100%; max-width: 520px; max-height: 90vh; overflow-y: auto; box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3); }
+.modal.modal-ancho { max-width: 680px; }
+.modal-encabezado { display: flex; justify-content: space-between; align-items: center; padding: 18px 24px; border-bottom: 1px solid #edf2f7; }
+.modal-encabezado h3 { margin: 0; color: var(--ep-azul-profundo); font-size: 18px; }
+.btn-cerrar { background: none; border: none; font-size: 18px; color: var(--ep-texto-suave); cursor: pointer; }
+.btn-cerrar:hover { color: var(--ep-azul-profundo); }
+.modal-cuerpo { padding: 24px; display: flex; flex-direction: column; gap: 16px; }
+.modal-cuerpo p { margin: 0; font-size: 14px; line-height: 1.5; }
+.modal-error { background: #fff5f5; color: #c53030; border: 1px solid #feb2b2; padding: 10px 12px; border-radius: 6px; font-size: 13px; }
+.modal-pie { display: flex; justify-content: flex-end; gap: 10px; }
+
+.campo { display: flex; flex-direction: column; gap: 6px; }
+.campo label { font-size: 12px; font-weight: 700; color: var(--ep-azul-principal); text-transform: uppercase; letter-spacing: 0.5px; }
+.campo input[type='text'], .campo input[type='date'], .campo select, .campo textarea { padding: 10px 12px; border: 1px solid var(--ep-borde); border-radius: 6px; outline: none; font-size: 14px; background: #fff; font-family: inherit; transition: all 0.3s; }
+.campo input:focus, .campo select:focus, .campo textarea:focus { border-color: var(--ep-azul-claro); box-shadow: 0 0 0 3px rgba(70, 164, 255, 0.2); }
+.campo textarea { resize: vertical; min-height: 70px; }
+.campo .ayuda { font-size: 12px; color: var(--ep-texto-suave); text-transform: none; letter-spacing: 0; font-weight: 400; }
+.fila-doble { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.sub { font-size: 12px; color: var(--ep-texto-suave); }

@@ -2,22 +2,24 @@ import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Observable, forkJoin } from 'rxjs';
+import { Area, AreaService, etiquetaDeArea } from '../../services/area';
 import { AuthService } from '../../services/auth';
 import { mensajeDeError } from '../../services/documento';
 import { Catalogo, UsuarioAdmin, UsuarioService } from '../../services/usuario';
 
-type Modal = 'registrar' | 'roles' | 'permisos' | 'clave' | 'baja' | 'reactivar' | null;
+type Modal = 'registrar' | 'roles' | 'permisos' | 'clave' | 'baja' | 'reactivar' | 'desbloquear' | 'area' | null;
 type FiltroEstado = '' | 'activos' | 'inactivos' | 'bloqueados' | 'solicitudes';
 
 @Component({
   selector: 'app-usuarios',
   standalone: true,
   imports: [FormsModule, DatePipe],
-  styleUrl: './usuarios.css',
+  styleUrls: ['./usuarios.css', './usuarios-fase1.css'],
   templateUrl: './usuarios.html',
 })
 export class UsuariosComponent implements OnInit {
   private servicio = inject(UsuarioService);
+  private areaServicio = inject(AreaService);
   private auth = inject(AuthService);
 
   private yo = this.auth.getUsuario();
@@ -31,6 +33,7 @@ export class UsuariosComponent implements OnInit {
 
   usuarios = signal<UsuarioAdmin[]>([]);
   catalogo = signal<Catalogo | null>(null);
+  areas = signal<Area[]>([]);
   cargando = signal(true);
   errorCarga = signal('');
   aviso = signal<{ tipo: 'ok' | 'error'; texto: string } | null>(null);
@@ -52,6 +55,9 @@ export class UsuariosComponent implements OnInit {
   // Permisos
   permisosSel = signal<string[]>([]);
 
+  // Cambiar área
+  areaSel = '';
+
   // Baja
   motivoBaja = '';
 
@@ -61,6 +67,19 @@ export class UsuariosComponent implements OnInit {
 
   roles = computed(() => this.catalogo()?.roles ?? []);
 
+  // Cada rol con su descripción y si está protegido
+  rolesDisponibles = computed(() => {
+    const info = this.catalogo()?.rolesInfo ?? {};
+    return this.roles().map((nombre) => ({
+      nombre,
+      descripcion: info[nombre]?.descripcion ?? '',
+      protegido: !!info[nombre]?.protegido,
+    }));
+  });
+
+  // Opciones de la lista de áreas, con sangría según su nivel
+  opcionesArea = computed(() => this.areas().map((a) => ({ valor: a.nombre, etiqueta: etiquetaDeArea(a) })));
+
   listaPermisos = computed(() =>
     Object.entries(this.catalogo()?.permisos ?? {}).map(([codigo, etiqueta]) => ({ codigo, etiqueta }))
   );
@@ -68,6 +87,8 @@ export class UsuariosComponent implements OnInit {
   solicitudesPendientes = computed(
     () => this.usuarios().filter((u) => u.estado && u.solicitoRecuperacion).length
   );
+
+  bloqueadas = computed(() => this.usuarios().filter((u) => u.estado && u.bloqueado).length);
 
   usuariosFiltrados = computed(() => {
     const texto = this.textoBusqueda().trim().toLowerCase();
@@ -100,10 +121,15 @@ export class UsuariosComponent implements OnInit {
     this.cargando.set(true);
     this.errorCarga.set('');
 
-    forkJoin({ usuarios: this.servicio.listar(), catalogo: this.servicio.catalogo() }).subscribe({
-      next: ({ usuarios, catalogo }) => {
+    forkJoin({
+      usuarios: this.servicio.listar(),
+      catalogo: this.servicio.catalogo(),
+      areas: this.areaServicio.listar(),
+    }).subscribe({
+      next: ({ usuarios, catalogo, areas }) => {
         this.usuarios.set(usuarios);
         this.catalogo.set(catalogo);
+        this.areas.set(areas);
         this.cargando.set(false);
       },
       error: async (err) => {
@@ -120,6 +146,15 @@ export class UsuariosComponent implements OnInit {
 
   tengoPermiso(codigo: string): boolean {
     return this.soySuperadmin || (this.yo?.permisos.includes(codigo) ?? false);
+  }
+
+  esSensible(codigo: string): boolean {
+    return this.catalogo()?.permisosSensibles.includes(codigo) ?? false;
+  }
+
+  // Los roles protegidos (Gerencia y Superadmin) solo los asigna un Superadmin
+  puedeAsignar(rol: { protegido: boolean }): boolean {
+    return !rol.protegido || this.soySuperadmin;
   }
 
   // ---------- Abrir y cerrar ventanas ----------
@@ -140,6 +175,11 @@ export class UsuariosComponent implements OnInit {
     this.abrir('permisos', u);
   }
 
+  abrirArea(u: UsuarioAdmin): void {
+    this.areaSel = u.departamento;
+    this.abrir('area', u);
+  }
+
   abrirClave(u: UsuarioAdmin): void {
     this.claveGenerada.set('');
     this.copiada.set(false);
@@ -153,6 +193,10 @@ export class UsuariosComponent implements OnInit {
 
   abrirReactivar(u: UsuarioAdmin): void {
     this.abrir('reactivar', u);
+  }
+
+  abrirDesbloquear(u: UsuarioAdmin): void {
+    this.abrir('desbloquear', u);
   }
 
   cerrarModal(): void {
@@ -170,8 +214,13 @@ export class UsuariosComponent implements OnInit {
 
   // ---------- Selección de roles y permisos ----------
 
-  alternarRol(rol: string): void {
-    this.rolesSel.update((lista) => (lista.includes(rol) ? lista.filter((r) => r !== rol) : [...lista, rol]));
+  alternarRol(rol: { nombre: string; protegido: boolean }): void {
+    if (!this.puedeAsignar(rol)) {
+      return;
+    }
+    this.rolesSel.update((lista) =>
+      lista.includes(rol.nombre) ? lista.filter((r) => r !== rol.nombre) : [...lista, rol.nombre]
+    );
   }
 
   alternarPermiso(codigo: string): void {
@@ -196,7 +245,7 @@ export class UsuariosComponent implements OnInit {
         nombres: f.nombres.trim(),
         apellidos: f.apellidos.trim(),
         email: f.email.trim(),
-        departamento: f.departamento.trim(),
+        departamento: f.departamento,
         roles: this.rolesSel(),
         password: f.password,
       }),
@@ -234,6 +283,18 @@ export class UsuariosComponent implements OnInit {
     );
   }
 
+  guardarArea(): void {
+    const u = this.seleccionado();
+    if (!u) {
+      return;
+    }
+    if (!this.areaSel) {
+      this.errorModal.set('Seleccione un área.');
+      return;
+    }
+    this.ejecutar(this.servicio.cambiarArea(u._id, this.areaSel), 'No se pudo cambiar el área.');
+  }
+
   generarClave(): void {
     const u = this.seleccionado();
     if (!u) {
@@ -243,6 +304,13 @@ export class UsuariosComponent implements OnInit {
       this.claveGenerada.set(res.claveTemporal);
       this.recargarLista();
     });
+  }
+
+  confirmarDesbloqueo(): void {
+    const u = this.seleccionado();
+    if (u) {
+      this.ejecutar(this.servicio.desbloquear(u._id), 'No se pudo desbloquear la cuenta.');
+    }
   }
 
   confirmarBaja(): void {
@@ -282,8 +350,7 @@ export class UsuariosComponent implements OnInit {
   // ---------- Internos ----------
 
   // Ejecuta una petición con el estado de "procesando". Si no se indica qué hacer al terminar,
-  // cierra la ventana, muestra el mensaje y recarga la lista. Es genérico para conservar el tipo
-  // de la respuesta (por ejemplo, la clave temporal).
+  // cierra la ventana, muestra el mensaje y recarga la lista.
   private ejecutar<T extends { mensaje: string }>(
     peticion: Observable<T>,
     errorPorDefecto: string,
@@ -327,7 +394,7 @@ export class UsuariosComponent implements OnInit {
   private validarRegistro(): string | null {
     const f = this.formulario;
 
-    if (![f.cedula, f.nombres, f.apellidos, f.email, f.departamento].every((c) => c.trim() !== '')) {
+    if (![f.cedula, f.nombres, f.apellidos, f.email].every((c) => c.trim() !== '')) {
       return 'Complete todos los datos obligatorios.';
     }
     if (!/^\d{10}$/.test(f.cedula.trim())) {
@@ -335,6 +402,9 @@ export class UsuariosComponent implements OnInit {
     }
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(f.email.trim())) {
       return 'El correo ingresado no es válido.';
+    }
+    if (!f.departamento) {
+      return 'Seleccione el área del usuario.';
     }
     if (this.rolesSel().length === 0) {
       return 'Seleccione al menos un rol.';

@@ -1,0 +1,155 @@
+<div class="module-container">
+  <div class="module-header">
+    <div class="title-section">
+      <h2>Roles</h2>
+      <p>Conjuntos de permisos que se asignan a los usuarios</p>
+    </div>
+    @if (puedeGestionar) {
+      <button class="btn-new" type="button" (click)="abrirNuevo()">+ Nuevo rol</button>
+    }
+  </div>
+
+  @if (aviso(); as a) {
+    <div class="aviso" [class.ok]="a.tipo === 'ok'" [class.error]="a.tipo === 'error'">{{ a.texto }}</div>
+  }
+
+  <div class="nota-roles">
+    Los roles <strong>Superadmin</strong> y <strong>Gerencia</strong> 🔒 están protegidos: solo un Superadmin puede asignarlos o modificarlos.
+    Los roles base no se eliminan; los que usted cree sí, mientras no tengan usuarios.
+  </div>
+
+  <div class="table-wrapper">
+    @if (cargando()) {
+      <div class="estado-vacio">Cargando roles...</div>
+    } @else if (errorCarga()) {
+      <div class="estado-vacio estado-error">{{ errorCarga() }}</div>
+    } @else {
+      <div class="tabla-scroll">
+        <table class="modern-table">
+          <thead>
+            <tr>
+              <th>Rol</th>
+              <th>Descripción</th>
+              <th>Permisos</th>
+              <th>Usuarios</th>
+              <th>Acciones</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (r of roles(); track r._id) {
+              <tr>
+                <td>
+                  <strong>{{ r.nombre }}</strong>
+                  @if (r.protegido) {
+                    <span title="Protegido">🔒</span>
+                  }
+                  <br>
+                  @if (r.sistema) {
+                    <span class="insignia neutra">Rol base</span>
+                  } @else {
+                    <span class="insignia info">Personalizado</span>
+                  }
+                </td>
+                <td class="descripcion">{{ r.descripcion || '—' }}</td>
+                <td><span class="insignia rol">{{ r.permisos.length }} permisos</span></td>
+                <td>{{ r.usuarios }}</td>
+                <td class="celda-acciones">
+                  @if (puedeGestionar && r.editable) {
+                    <button class="btn-icon" type="button" title="Editar" (click)="abrirEditar(r)">✎</button>
+                  }
+                  @if (puedeGestionar && r.eliminable) {
+                    <button class="btn-icon" type="button" title="Eliminar" (click)="abrirEliminar(r)">🗑️</button>
+                  }
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  </div>
+</div>
+
+<!-- Ventana: crear o editar un rol -->
+@if (modal() === 'formulario') {
+  <div class="modal-fondo" (click)="cerrarModal()">
+    <div class="modal modal-ancho" (click)="$event.stopPropagation()">
+      <div class="modal-encabezado">
+        <h3>{{ seleccionado() ? 'Editar rol: ' + seleccionado()!.nombre : 'Nuevo rol' }}</h3>
+        <button class="btn-cerrar" type="button" (click)="cerrarModal()">✕</button>
+      </div>
+
+      <form class="modal-cuerpo columna" (ngSubmit)="guardar()">
+        @if (!seleccionado()) {
+          <div class="campo">
+            <label>Nombre del rol</label>
+            <input type="text" name="nombre" [(ngModel)]="nombre" maxlength="40" placeholder="Ej. Tesorería">
+          </div>
+        }
+        <div class="campo">
+          <label>Descripción</label>
+          <input type="text" name="descripcion" [(ngModel)]="descripcion" maxlength="300" placeholder="¿Para qué sirve este rol?">
+        </div>
+
+        <div class="campo">
+          <label>Permisos</label>
+          <p class="sub">Los permisos <strong>sensibles</strong> solo puede otorgarlos quien ya los posee.</p>
+          @for (g of grupos(); track g.titulo) {
+            <div class="grupo-permisos">
+              <h4>{{ g.titulo }}</h4>
+              <div class="lista-checks vertical">
+                @for (p of g.permisos; track p.codigo) {
+                  <label class="check">
+                    <input type="checkbox" [checked]="permisosSel().includes(p.codigo)"
+                           [disabled]="bloqueadoParaMi(p.codigo)" (change)="alternarPermiso(p.codigo)">
+                    <span>
+                      {{ p.etiqueta }}
+                      @if (esSensible(p.codigo)) {
+                        <em class="etiqueta-sensible">sensible</em>
+                      }
+                    </span>
+                  </label>
+                }
+              </div>
+            </div>
+          }
+        </div>
+
+        @if (errorModal()) {
+          <div class="modal-error">{{ errorModal() }}</div>
+        }
+
+        <div class="modal-pie">
+          <button class="btn-secundario" type="button" (click)="cerrarModal()">Cancelar</button>
+          <button class="btn-new" type="submit" [disabled]="procesando()">
+            {{ procesando() ? 'Guardando...' : 'Guardar rol' }}
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+}
+
+<!-- Ventana: eliminar -->
+@if (modal() === 'eliminar' && seleccionado(); as r) {
+  <div class="modal-fondo" (click)="cerrarModal()">
+    <div class="modal" (click)="$event.stopPropagation()">
+      <div class="modal-encabezado">
+        <h3>Eliminar el rol {{ r.nombre }}</h3>
+        <button class="btn-cerrar" type="button" (click)="cerrarModal()">✕</button>
+      </div>
+      <div class="modal-cuerpo columna">
+        <p>Se eliminará el rol. No tiene usuarios asignados, así que nadie perderá sus permisos.</p>
+        @if (errorModal()) {
+          <div class="modal-error">{{ errorModal() }}</div>
+        }
+        <div class="modal-pie">
+          <button class="btn-secundario" type="button" (click)="cerrarModal()">Cancelar</button>
+          <button class="btn-peligro" type="button" [disabled]="procesando()" (click)="confirmarEliminar()">
+            {{ procesando() ? 'Eliminando...' : 'Eliminar rol' }}
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+}

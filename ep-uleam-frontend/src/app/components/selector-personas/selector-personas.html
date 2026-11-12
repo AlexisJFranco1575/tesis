@@ -1,0 +1,48 @@
+<div class="selector">
+  <div class="cabecera">
+    <strong>{{ titulo() }}</strong>
+    <span class="contador">{{ seleccion().length }} seleccionado(s)</span>
+  </div>
+
+  @if (elegidas().length > 0) {
+    <div class="chips">
+      @for (p of elegidas(); track p.id) {
+        <span class="chip">
+          {{ p.nombre }}
+          <button type="button" title="Quitar" (click)="quitar(p.id)">✕</button>
+        </span>
+      }
+    </div>
+  }
+
+  <div class="filtros">
+    <input type="text" placeholder="🔍 Buscar persona..." [value]="texto()"
+           (input)="alEscribir($event)" (keydown.enter)="$event.preventDefault()">
+    <select [value]="area()" (change)="alElegirArea($event)">
+      <option value="">Todas las áreas</option>
+      @for (a of areas(); track a) {
+        <option [value]="a">{{ a }}</option>
+      }
+    </select>
+  </div>
+
+  <div class="lista">
+    @if (cargando()) {
+      <div class="vacio">Cargando personas...</div>
+    } @else if (error()) {
+      <div class="vacio error">{{ error() }}</div>
+    } @else if (visibles().length === 0) {
+      <div class="vacio">No hay personas que coincidan.</div>
+    } @else {
+      @for (p of visibles(); track p.id) {
+        <label class="persona">
+          <input type="checkbox" [checked]="seleccion().includes(p.id)" (change)="alternar(p.id)">
+          <span>
+            <strong>{{ p.nombre }}</strong>
+            <small>{{ p.departamento }}</small>
+          </span>
+        </label>
+      }
+    }
+  </div>
+</div>

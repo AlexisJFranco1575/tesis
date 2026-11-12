@@ -2,7 +2,7 @@
   <div class="module-header">
     <div class="title-section">
       <h2>Gestión de usuarios</h2>
-      <p>Cuentas, roles y permisos del sistema</p>
+      <p>Cuentas, áreas, roles y permisos del sistema</p>
     </div>
     @if (puedeGestionar) {
       <button class="btn-new" type="button" (click)="abrirRegistro()">+ Registrar usuario</button>
@@ -22,9 +22,18 @@
     </div>
   }
 
+  @if (bloqueadas() > 0) {
+    <div class="banner-solicitudes banner-bloqueos">
+      <span>🔒 Hay <strong>{{ bloqueadas() }}</strong> cuenta(s) bloqueada(s). Se desbloquean solas al cumplirse el tiempo, o puede hacerlo ahora.</span>
+      @if (filtroEstado() !== 'bloqueados') {
+        <button type="button" class="btn-secundario" (click)="filtroEstado.set('bloqueados')">Ver bloqueadas</button>
+      }
+    </div>
+  }
+
   <div class="filters-bar">
     <input type="text" class="search-input" [(ngModel)]="textoBusqueda"
-           placeholder="🔍 Buscar por nombre, cédula, correo o departamento...">
+           placeholder="🔍 Buscar por nombre, cédula, correo o área...">
     <select class="filter-select" [(ngModel)]="filtroEstado">
       <option value="">Estado: Todos</option>
       <option value="activos">Activos</option>
@@ -48,7 +57,7 @@
             <tr>
               <th>Usuario</th>
               <th>Correo</th>
-              <th>Departamento</th>
+              <th>Área</th>
               <th>Roles</th>
               <th>Estado</th>
               <th>Último acceso</th>
@@ -74,6 +83,9 @@
                     <span class="insignia neutra">Inactivo</span>
                   } @else if (u.bloqueado) {
                     <span class="insignia alerta">Bloqueado</span>
+                    @if (u.bloqueadoHasta) {
+                      <br><span class="sub">hasta las {{ u.bloqueadoHasta | date: 'HH:mm' }}</span>
+                    }
                   } @else {
                     <span class="insignia ok">Activo</span>
                   }
@@ -94,8 +106,12 @@
                 <td class="celda-acciones">
                   @if (esAdministrable(u)) {
                     @if (u.estado) {
+                      @if (puedeGestionar && u.bloqueado) {
+                        <button class="btn-desbloquear" type="button" (click)="abrirDesbloquear(u)">🔓 Desbloquear</button>
+                      }
                       @if (puedeGestionar) {
-                        <button class="btn-icon" type="button" title="Generar clave temporal" (click)="abrirClave(u)">🔑</button>
+                        <button class="btn-icon" type="button" title="Generar clave temporal (también desbloquea)" (click)="abrirClave(u)">🔑</button>
+                        <button class="btn-icon" type="button" title="Cambiar de área" (click)="abrirArea(u)">🏢</button>
                       }
                       @if (puedeRoles) {
                         <button class="btn-icon" type="button" title="Roles" (click)="abrirRoles(u)">👥</button>
@@ -147,21 +163,30 @@
           <input type="text" name="apellidos" [(ngModel)]="formulario.apellidos">
         </div>
         <div class="campo completo">
-          <label>Departamento</label>
-          <input type="text" name="departamento" [(ngModel)]="formulario.departamento" placeholder="Ej. Secretaría General">
+          <label>Área</label>
+          <select name="departamento" [(ngModel)]="formulario.departamento">
+            <option value="">Seleccione un área...</option>
+            @for (o of opcionesArea(); track o.valor) {
+              <option [value]="o.valor">{{ o.etiqueta }}</option>
+            }
+          </select>
         </div>
 
         <div class="campo completo">
           <label>Roles</label>
-          <div class="lista-checks">
-            @for (r of roles(); track r) {
-              <label class="check">
-                <input type="checkbox" [checked]="rolesSel().includes(r)"
-                       [disabled]="r === 'Superadmin' && !soySuperadmin" (change)="alternarRol(r)">
-                {{ r }}
+          <div class="lista-roles">
+            @for (r of rolesDisponibles(); track r.nombre) {
+              <label class="rol-opcion" [class.bloqueado]="!puedeAsignar(r)">
+                <input type="checkbox" [checked]="rolesSel().includes(r.nombre)"
+                       [disabled]="!puedeAsignar(r)" (change)="alternarRol(r)">
+                <span class="rol-texto">
+                  <strong>{{ r.nombre }} @if (r.protegido) { <span title="Solo un Superadmin puede asignarlo">🔒</span> }</strong>
+                  <small>{{ r.descripcion }}</small>
+                </span>
               </label>
             }
           </div>
+          <span class="sub">🔒 Los roles protegidos solo los asigna un Superadmin.</span>
         </div>
 
         <div class="campo completo">
@@ -196,22 +221,26 @@
     <!-- Roles -->
     @case ('roles') {
       <div class="modal-fondo" (click)="cerrarModal()">
-        <div class="modal" (click)="$event.stopPropagation()">
+        <div class="modal modal-ancho" (click)="$event.stopPropagation()">
           <div class="modal-encabezado">
             <h3>Roles de {{ u.nombres }} {{ u.apellidos }}</h3>
             <button class="btn-cerrar" type="button" (click)="cerrarModal()">✕</button>
           </div>
           <form class="modal-cuerpo columna" (ngSubmit)="guardarRoles()">
             <p class="sub">Cada rol trae un conjunto de permisos. Un usuario puede tener más de un rol.</p>
-            <div class="lista-checks vertical">
-              @for (r of roles(); track r) {
-                <label class="check">
-                  <input type="checkbox" [checked]="rolesSel().includes(r)"
-                         [disabled]="r === 'Superadmin' && !soySuperadmin" (change)="alternarRol(r)">
-                  {{ r }}
+            <div class="lista-roles">
+              @for (r of rolesDisponibles(); track r.nombre) {
+                <label class="rol-opcion" [class.bloqueado]="!puedeAsignar(r)">
+                  <input type="checkbox" [checked]="rolesSel().includes(r.nombre)"
+                         [disabled]="!puedeAsignar(r)" (change)="alternarRol(r)">
+                  <span class="rol-texto">
+                    <strong>{{ r.nombre }} @if (r.protegido) { <span title="Solo un Superadmin puede asignarlo o quitarlo">🔒</span> }</strong>
+                    <small>{{ r.descripcion }}</small>
+                  </span>
                 </label>
               }
             </div>
+            <span class="sub">🔒 Los roles protegidos solo los asigna o quita un Superadmin.</span>
             @if (errorModal()) {
               <div class="modal-error">{{ errorModal() }}</div>
             }
@@ -240,17 +269,20 @@
             } @else {
               <p class="sub">
                 Roles actuales: <strong>{{ u.roles.join(', ') }}</strong>. Marque o desmarque para agregar o retirar
-                permisos individuales. No puede otorgar permisos que usted no posee.
+                permisos individuales. Los permisos <strong>sensibles</strong> solo puede otorgarlos quien ya los posee.
               </p>
             }
             <div class="lista-checks vertical">
               @for (p of listaPermisos(); track p.codigo) {
                 <label class="check">
                   <input type="checkbox" [checked]="permisosSel().includes(p.codigo)"
-                         [disabled]="u.roles.includes('Superadmin') || (!tengoPermiso(p.codigo) && !permisosSel().includes(p.codigo))"
+                         [disabled]="u.roles.includes('Superadmin') || (esSensible(p.codigo) && !tengoPermiso(p.codigo) && !permisosSel().includes(p.codigo))"
                          (change)="alternarPermiso(p.codigo)">
                   <span>
                     {{ p.etiqueta }}
+                    @if (esSensible(p.codigo)) {
+                      <em class="etiqueta-sensible">sensible</em>
+                    }
                     @if (permisosDeRolSel().includes(p.codigo)) {
                       <em class="sub">(incluido por su rol)</em>
                     }
@@ -268,6 +300,66 @@
               </button>
             </div>
           </form>
+        </div>
+      </div>
+    }
+
+    <!-- Cambiar área -->
+    @case ('area') {
+      <div class="modal-fondo" (click)="cerrarModal()">
+        <div class="modal" (click)="$event.stopPropagation()">
+          <div class="modal-encabezado">
+            <h3>Área de {{ u.nombres }} {{ u.apellidos }}</h3>
+            <button class="btn-cerrar" type="button" (click)="cerrarModal()">✕</button>
+          </div>
+          <form class="modal-cuerpo columna" (ngSubmit)="guardarArea()">
+            <p class="sub">El área determina qué documentos ve el usuario: los de su área como remitente o destinatario.</p>
+            <div class="campo">
+              <label>Área</label>
+              <select name="areaSel" [(ngModel)]="areaSel">
+                @for (o of opcionesArea(); track o.valor) {
+                  <option [value]="o.valor">{{ o.etiqueta }}</option>
+                }
+              </select>
+            </div>
+            @if (errorModal()) {
+              <div class="modal-error">{{ errorModal() }}</div>
+            }
+            <div class="modal-pie">
+              <button class="btn-secundario" type="button" (click)="cerrarModal()">Cancelar</button>
+              <button class="btn-new" type="submit" [disabled]="procesando()">
+                {{ procesando() ? 'Guardando...' : 'Guardar área' }}
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    }
+
+    <!-- Desbloquear cuenta -->
+    @case ('desbloquear') {
+      <div class="modal-fondo" (click)="cerrarModal()">
+        <div class="modal" (click)="$event.stopPropagation()">
+          <div class="modal-encabezado">
+            <h3>Desbloquear cuenta</h3>
+            <button class="btn-cerrar" type="button" (click)="cerrarModal()">✕</button>
+          </div>
+          <div class="modal-cuerpo columna">
+            <p>
+              La cuenta de <strong>{{ u.nombres }} {{ u.apellidos }}</strong> quedará habilitada ahora.
+              El usuario entrará con su <strong>contraseña actual</strong>: no se cambia nada más.
+            </p>
+            <p class="sub">Si el usuario olvidó su contraseña, use 🔑 para entregarle una clave temporal.</p>
+            @if (errorModal()) {
+              <div class="modal-error">{{ errorModal() }}</div>
+            }
+            <div class="modal-pie">
+              <button class="btn-secundario" type="button" (click)="cerrarModal()">Cancelar</button>
+              <button class="btn-new" type="button" [disabled]="procesando()" (click)="confirmarDesbloqueo()">
+                {{ procesando() ? 'Procesando...' : 'Desbloquear' }}
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     }

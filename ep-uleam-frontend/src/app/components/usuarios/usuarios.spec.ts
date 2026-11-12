@@ -2,14 +2,26 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { API_URL } from '../../config';
+import { Area } from '../../services/area';
 import { Catalogo, UsuarioAdmin } from '../../services/usuario';
 import { UsuariosComponent } from './usuarios';
 
 const catalogoDePrueba: Catalogo = {
-  roles: ['Superadmin', 'Secretaría'],
-  permisos: { 'documentos.consultar': 'Consultar documentos' },
-  permisosPorRol: { Superadmin: ['documentos.consultar'], Secretaría: ['documentos.consultar'] },
+  roles: ['Superadmin', 'Gerencia', 'Funcionario'],
+  rolesInfo: {
+    Superadmin: { descripcion: 'Administra todo', protegido: true },
+    Gerencia: { descripcion: 'Máxima autoridad', protegido: true },
+    Funcionario: { descripcion: 'Personal de cualquier área', protegido: false },
+  },
+  permisos: { 'documentos.consultar': 'Consultar documentos', 'documentos.aprobar': 'Aprobar documentos' },
+  permisosSensibles: ['documentos.aprobar'],
+  permisosPorRol: { Superadmin: [], Gerencia: [], Funcionario: ['documentos.consultar'] },
 };
+
+const areasDePrueba: Area[] = [
+  { _id: 'a1', nombre: 'Gerencia General', siglas: 'GG', tipo: 'area', padre: null, activa: true, nivel: 0, ruta: 'Gerencia General' },
+  { _id: 'a2', nombre: 'Contabilidad', siglas: 'CONT', tipo: 'area', padre: 'a1', activa: true, nivel: 1, ruta: 'Gerencia General / Contabilidad' },
+];
 
 function usuario(datos: Partial<UsuarioAdmin>): UsuarioAdmin {
   return {
@@ -18,8 +30,8 @@ function usuario(datos: Partial<UsuarioAdmin>): UsuarioAdmin {
     nombres: 'María',
     apellidos: 'Prueba',
     email: 'maria@uleam.edu.ec',
-    departamento: 'Secretaría General',
-    roles: ['Secretaría'],
+    departamento: 'Contabilidad',
+    roles: ['Funcionario'],
     permisos: ['documentos.consultar'],
     permisosExtra: [],
     permisosRetirados: [],
@@ -27,6 +39,7 @@ function usuario(datos: Partial<UsuarioAdmin>): UsuarioAdmin {
     fechaBaja: null,
     motivoBaja: '',
     bloqueado: false,
+    bloqueadoHasta: null,
     debeCambiarPassword: false,
     solicitoRecuperacion: false,
     solicitudRecuperacionEn: null,
@@ -58,34 +71,58 @@ describe('UsuariosComponent', () => {
   function cargarDatos(usuarios: UsuarioAdmin[]): void {
     http.expectOne(`${API_URL}/usuarios`).flush(usuarios);
     http.expectOne(`${API_URL}/usuarios/catalogo`).flush(catalogoDePrueba);
+    http.expectOne(`${API_URL}/areas`).flush(areasDePrueba);
   }
 
-  it('carga los usuarios y el catálogo al iniciar', () => {
+  it('carga usuarios, catálogo y áreas al iniciar', () => {
     cargarDatos([usuario({})]);
 
     expect(component.usuarios().length).toBe(1);
-    expect(component.roles()).toEqual(['Superadmin', 'Secretaría']);
+    expect(component.roles()).toEqual(['Superadmin', 'Gerencia', 'Funcionario']);
+    expect(component.areas().length).toBe(2);
     expect(component.cargando()).toBe(false);
   });
 
-  it('filtra por texto y por estado', () => {
+  it('muestra cada rol con su descripción y marca los protegidos', () => {
+    cargarDatos([]);
+
+    const roles = component.rolesDisponibles();
+    expect(roles.find((r) => r.nombre === 'Gerencia')?.protegido).toBe(true);
+    expect(roles.find((r) => r.nombre === 'Funcionario')?.descripcion).toBe('Personal de cualquier área');
+  });
+
+  it('quien no es Superadmin no puede asignar roles protegidos', () => {
+    cargarDatos([]);
+
+    expect(component.soySuperadmin).toBe(false);
+    component.alternarRol({ nombre: 'Gerencia', protegido: true });
+    expect(component.rolesSel()).toEqual([]);
+
+    component.alternarRol({ nombre: 'Funcionario', protegido: false });
+    expect(component.rolesSel()).toEqual(['Funcionario']);
+  });
+
+  it('arma la lista de áreas con sangría según el nivel', () => {
+    cargarDatos([]);
+
+    expect(component.opcionesArea().map((o) => o.etiqueta)).toEqual(['Gerencia General', '— Contabilidad']);
+  });
+
+  it('filtra por texto y por estado, y cuenta bloqueadas y solicitudes', () => {
     cargarDatos([
       usuario({ _id: '1' }),
       usuario({ _id: '2', nombres: 'Luis', email: 'luis@uleam.edu.ec', estado: false }),
+      usuario({ _id: '3', nombres: 'Ana', bloqueado: true, solicitoRecuperacion: true }),
     ]);
 
     component.textoBusqueda.set('luis');
     expect(component.usuariosFiltrados().length).toBe(1);
 
     component.textoBusqueda.set('');
-    component.filtroEstado.set('inactivos');
-    expect(component.usuariosFiltrados().length).toBe(1);
-    expect(component.usuariosFiltrados()[0]._id).toBe('2');
-  });
+    component.filtroEstado.set('bloqueados');
+    expect(component.usuariosFiltrados()[0]._id).toBe('3');
 
-  it('cuenta las solicitudes de recuperación pendientes', () => {
-    cargarDatos([usuario({ _id: '1', solicitoRecuperacion: true }), usuario({ _id: '2' })]);
-
+    expect(component.bloqueadas()).toBe(1);
     expect(component.solicitudesPendientes()).toBe(1);
   });
 });

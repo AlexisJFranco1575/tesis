@@ -1,0 +1,113 @@
+<div class="pagina">
+  <a class="volver" routerLink="/dashboard/bandejas/elaboracion">← Volver</a>
+
+  <h2>{{ referencia() ? 'Responder documento' : 'Nuevo documento' }}</h2>
+  <p class="sub">Elabore el documento. El código lo genera el sistema; al guardarlo podrá enviarlo a sus destinatarios.</p>
+
+  @if (referencia(); as r) {
+    <div class="referencia">
+      ↩ En respuesta a
+      <a [routerLink]="['/dashboard/documentos', r._id]">{{ r.codigoTramite }}</a> — {{ r.asunto }}
+    </div>
+  }
+
+  <form class="tarjeta" (ngSubmit)="guardar()">
+    <div class="remitente">
+      <span class="etiqueta">De</span>
+      <strong>{{ yo?.nombreCompleto }}</strong>
+      <span class="sub">· {{ yo?.departamento }}</span>
+    </div>
+
+    <div class="grid">
+      <div class="campo">
+        <label>Tipo de documento</label>
+        <select name="tipo" [ngModel]="tipo()" (ngModelChange)="tipo.set($event)">
+          @for (t of tipos; track t) {
+            <option [value]="t">{{ t }}</option>
+          }
+        </select>
+      </div>
+      <div class="campo">
+        <label>Número de oficio</label>
+        <input type="text" name="numeroOficio" [(ngModel)]="formulario.numeroOficio" placeholder="Ej. MEM-2026-001">
+      </div>
+
+      <div class="campo completo">
+        <div class="aviso-tipo">{{ avisoTipo() }}</div>
+      </div>
+
+      <div class="campo">
+        <label>Fecha del documento</label>
+        <input type="date" name="fechaOficio" [(ngModel)]="formulario.fechaOficio">
+      </div>
+      <div class="campo">
+        <label>Prioridad</label>
+        <select name="prioridad" [(ngModel)]="formulario.prioridad">
+          @for (p of prioridades; track p) {
+            <option [value]="p">{{ p }}</option>
+          }
+        </select>
+      </div>
+
+      <div class="campo completo">
+        <label>Asunto</label>
+        <input type="text" name="asunto" [(ngModel)]="formulario.asunto" placeholder="Ej. Solicitud de presupuesto">
+      </div>
+      <div class="campo completo">
+        <label>Motivo</label>
+        <textarea name="motivo" [(ngModel)]="formulario.motivo" rows="2" placeholder="Razón por la que se emite el documento"></textarea>
+      </div>
+      <div class="campo completo">
+        <label>Observación (opcional)</label>
+        <textarea name="observacion" [(ngModel)]="formulario.observacion" rows="2"></textarea>
+      </div>
+
+      <div class="campo">
+        <label>Dirigido al área</label>
+        <select name="area" [ngModel]="area()" (ngModelChange)="cambiarArea($event)">
+          <option value="">Seleccione un área...</option>
+          @for (o of opcionesArea(); track o.valor) {
+            <option [value]="o.valor">{{ o.etiqueta }}</option>
+          }
+        </select>
+      </div>
+      <div class="campo">
+        <label>Persona (opcional)</label>
+        <select name="personaId" [(ngModel)]="formulario.personaId" [disabled]="!area()">
+          <option value="">Cualquier persona del área</option>
+          @for (p of personasDelArea(); track p.id) {
+            <option [value]="p.id">{{ p.nombre }}</option>
+          }
+        </select>
+      </div>
+      <div class="campo completo">
+        <span class="ayuda">Este es el destinatario principal. Al enviar el documento podrá elegir a todas las personas «Para» y «Con copia».</span>
+      </div>
+
+      <div class="campo completo">
+        <label class="casilla">
+          <input type="checkbox" name="confidencial" [(ngModel)]="formulario.confidencial">
+          🔒 Documento confidencial
+        </label>
+        <span class="ayuda">Solo lo verán las personas que intervienen en el trámite; ni siquiera Gerencia ni los administradores.</span>
+      </div>
+
+      <div class="campo completo">
+        <label>Archivo PDF</label>
+        <input type="file" name="archivo" accept="application/pdf" (change)="alSeleccionarArchivo($event)">
+        <span class="ayuda">Los anexos se agregan después, desde el detalle del documento.</span>
+      </div>
+    </div>
+
+    @if (error()) {
+      <div class="modal-error">{{ error() }}</div>
+    }
+
+    <div class="pie">
+      <a class="btn-secundario enlace-boton" routerLink="/dashboard/bandejas/elaboracion">Cancelar</a>
+      <button class="btn-primario" type="submit" [disabled]="guardando()">
+        {{ guardando() ? 'Guardando...' : 'Guardar y generar hash' }}
+      </button>
+    </div>
+  </form>
+</div>

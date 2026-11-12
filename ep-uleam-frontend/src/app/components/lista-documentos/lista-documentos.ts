@@ -1,7 +1,7 @@
 import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { Router } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { AuthService } from '../../services/auth';
 import {
   Documento,
@@ -16,18 +16,10 @@ import {
 const normalizar = (texto: string): string =>
   texto.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
 
-// Fecha de hoy en formato AAAA-MM-DD (hora local), para el campo de fecha del formulario
-const fechaLocalHoy = (): string => {
-  const hoy = new Date();
-  const mes = String(hoy.getMonth() + 1).padStart(2, '0');
-  const dia = String(hoy.getDate()).padStart(2, '0');
-  return `${hoy.getFullYear()}-${mes}-${dia}`;
-};
-
 @Component({
   selector: 'app-lista-documentos',
   standalone: true,
-  imports: [FormsModule, DatePipe],
+  imports: [FormsModule, DatePipe, RouterLink],
   styleUrls: ['./lista-documentos.css', './lista-avisos.css', './lista-busqueda.css'],
   templateUrl: './lista-documentos.html',
 })
@@ -35,6 +27,7 @@ export class ListaDocumentosComponent implements OnInit {
   private documentoService = inject(DocumentoService);
   private auth = inject(AuthService);
   private router = inject(Router);
+  private route = inject(ActivatedRoute);
 
   readonly puedeRegistrar = this.auth.tienePermiso('documentos.registrar');
   readonly puedeAprobar = this.auth.tienePermiso('documentos.aprobar');
@@ -48,7 +41,6 @@ export class ListaDocumentosComponent implements OnInit {
   documentos = signal<Documento[]>([]);
   cargando = signal(true);
   errorCarga = signal('');
-  aviso = signal('');
 
   // Criterios de búsqueda (se combinan entre sí)
   textoBusqueda = signal('');
@@ -58,13 +50,6 @@ export class ListaDocumentosComponent implements OnInit {
   fechaDesde = signal('');
   fechaHasta = signal('');
   filtrosAbiertos = signal(false);
-
-  // Formulario de registro
-  modalAbierto = signal(false);
-  guardando = signal(false);
-  errorFormulario = signal('');
-  archivo: File | null = null;
-  formulario = this.formularioVacio();
 
   // Departamentos que aparecen como remitente o destinatario
   departamentos = computed(() => {
@@ -126,6 +111,13 @@ export class ListaDocumentosComponent implements OnInit {
   });
 
   ngOnInit(): void {
+    // La barra de búsqueda de la parte superior envía el texto en la dirección (?texto=...)
+    this.route.queryParamMap.subscribe((params) => {
+      const texto = params.get('texto');
+      if (texto !== null) {
+        this.textoBusqueda.set(texto);
+      }
+    });
     this.cargarDocumentos();
   }
 
@@ -164,94 +156,5 @@ export class ListaDocumentosComponent implements OnInit {
 
   verDetalle(id: string): void {
     this.router.navigate(['/dashboard/documentos', id]);
-  }
-
-  abrirModal(): void {
-    this.formulario = this.formularioVacio();
-    this.archivo = null;
-    this.errorFormulario.set('');
-    this.modalAbierto.set(true);
-  }
-
-  cerrarModal(): void {
-    this.modalAbierto.set(false);
-  }
-
-  alSeleccionarArchivo(evento: Event): void {
-    const input = evento.target as HTMLInputElement;
-    this.archivo = input.files?.[0] ?? null;
-  }
-
-  guardar(): void {
-    this.errorFormulario.set('');
-    const f = this.formulario;
-
-    const faltanDatos =
-      !f.numeroOficio.trim() ||
-      !f.fechaOficio ||
-      !f.asunto.trim() ||
-      !f.motivo.trim() ||
-      !f.remitenteNombre.trim() ||
-      !f.remitenteDepartamento.trim() ||
-      !f.destinatarioNombre.trim() ||
-      !f.destinatarioDepartamento.trim();
-
-    if (faltanDatos) {
-      this.errorFormulario.set('Complete todos los campos obligatorios.');
-      return;
-    }
-    if (!this.archivo) {
-      this.errorFormulario.set('Debe adjuntar el archivo PDF del documento.');
-      return;
-    }
-
-    const datos = new FormData();
-    datos.append('numeroOficio', f.numeroOficio.trim());
-    datos.append('fechaOficio', f.fechaOficio);
-    datos.append('tipoDocumento', f.tipoDocumento);
-    datos.append('asunto', f.asunto.trim());
-    datos.append('motivo', f.motivo.trim());
-    datos.append('observacion', f.observacion.trim());
-    datos.append(
-      'remitente',
-      JSON.stringify({ nombre: f.remitenteNombre.trim(), departamento: f.remitenteDepartamento.trim() })
-    );
-    datos.append(
-      'destinatario',
-      JSON.stringify({ nombre: f.destinatarioNombre.trim(), departamento: f.destinatarioDepartamento.trim() })
-    );
-    datos.append('archivo', this.archivo);
-
-    this.guardando.set(true);
-    this.documentoService.crearDocumento(datos).subscribe({
-      next: (res) => {
-        this.guardando.set(false);
-        this.cerrarModal();
-        this.aviso.set(res.mensaje);
-        setTimeout(() => this.aviso.set(''), 9000);
-        this.cargarDocumentos();
-      },
-      error: async (err) => {
-        this.guardando.set(false);
-        this.errorFormulario.set(await mensajeDeError(err, 'No se pudo registrar el documento.'));
-      }
-    });
-  }
-
-  // El remitente se pre-llena con el usuario que inició sesión
-  private formularioVacio() {
-    const usuario = this.auth.getUsuario();
-    return {
-      numeroOficio: '',
-      fechaOficio: fechaLocalHoy(),
-      tipoDocumento: 'Oficio',
-      asunto: '',
-      motivo: '',
-      observacion: '',
-      remitenteNombre: usuario?.nombreCompleto ?? '',
-      remitenteDepartamento: usuario?.departamento ?? '',
-      destinatarioNombre: '',
-      destinatarioDepartamento: ''
-    };
   }
 }

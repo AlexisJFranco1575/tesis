@@ -3,11 +3,12 @@ import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { AuthService } from '../../services/auth';
 import { mensajeDeError } from '../../services/documento';
+import { CampoPasswordComponent } from '../campo-password/campo-password';
 
 @Component({
   selector: 'app-cambiar-password',
   standalone: true,
-  imports: [FormsModule],
+  imports: [FormsModule, CampoPasswordComponent],
   templateUrl: './cambiar-password.html',
   styleUrls: ['../login/login.css'] // comparte el diseño de la pantalla de login
 })

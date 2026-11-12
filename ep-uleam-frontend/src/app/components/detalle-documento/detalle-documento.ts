@@ -3,7 +3,11 @@ import { DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { forkJoin } from 'rxjs';
+import { Area, AreaService, etiquetaDeArea } from '../../services/area';
 import { AuthService } from '../../services/auth';
+import { DirectorioService } from '../../services/directorio';
+import { PendientesService } from '../../services/pendientes';
+import { TramiteService } from '../../services/tramite';
 import {
   Anexo,
   Documento,
@@ -12,7 +16,6 @@ import {
   EstadoDocumento,
   FORMATOS_ANEXO,
   MAX_ANEXOS_POR_CARGA,
-  Persona,
   ResultadoVerificacion,
   TAMANO_MAXIMO_BYTES,
   TIPOS_ANEXO,
@@ -24,13 +27,13 @@ import {
   etiquetaAccion,
   mensajeDeError,
 } from '../../services/documento';
+import { PanelTramiteComponent } from '../panel-tramite/panel-tramite';
 
 const DESCRIPCION_TRANSICION: Record<string, string> = {
   'En Revisión':
     'El documento pasará a Gerencia para su revisión. Mientras esté en revisión no podrá modificarse ni tendrá nuevas versiones.',
   Aprobado: 'Se registrará su aprobación. Puede agregar una observación (opcional).',
   Rechazado: 'El documento volverá al área para su corrección. La observación con el motivo es obligatoria.',
-  Distribuido: 'Se notificará al área destinataria que el documento ya fue distribuido.',
   Archivado: 'El documento quedará archivado.',
   Generado: 'El documento volverá al estado Generado y podrá modificarse nuevamente.',
 };
@@ -41,14 +44,18 @@ const EXTENSIONES_VISIBLES = ['.pdf', '.png', '.jpg', '.jpeg'];
 @Component({
   selector: 'app-detalle-documento',
   standalone: true,
-  imports: [FormsModule, DatePipe, RouterLink],
-  styleUrls: ['./detalle-documento.css', './detalle-flujo.css', './detalle-anexos.css'],
+  imports: [FormsModule, DatePipe, RouterLink, PanelTramiteComponent],
+  styleUrls: ['./detalle-documento.css', './detalle-flujo.css', './detalle-anexos.css', './detalle-tramite.css'],
   templateUrl: './detalle-documento.html',
 })
 export class DetalleDocumentoComponent implements OnInit {
   private route = inject(ActivatedRoute);
   private servicio = inject(DocumentoService);
   private auth = inject(AuthService);
+  private areasServicio = inject(AreaService);
+  private directorio = inject(DirectorioService);
+  private tramites = inject(TramiteService);
+  private pendientes = inject(PendientesService);
 
   // Qué botones se muestran según los permisos del usuario (el backend los exige igualmente)
   readonly puedeDescargar = this.auth.tienePermiso('documentos.descargar');
@@ -104,19 +111,23 @@ export class DetalleDocumentoComponent implements OnInit {
   errorEstado = signal('');
   observacionEstado = '';
 
-  // Ventana: editar datos
+  // Ventana: editar datos (el destinatario se elige de listas, no se escribe)
   modalEditar = signal(false);
   guardandoEdicion = signal(false);
   errorEdicion = signal('');
+  areas = signal<Area[]>([]);
+  areaEdicion = signal('');
   edicion = {
     asunto: '',
     tipoDocumento: 'Oficio',
     motivo: '',
     observacion: '',
     fechaOficio: '',
-    destinatarioNombre: '',
-    destinatarioDepartamento: '',
+    personaId: '',
   };
+
+  opcionesArea = computed(() => this.areas().map((a) => ({ valor: a.nombre, etiqueta: etiquetaDeArea(a) })));
+  personasDelArea = computed(() => this.directorio.personas().filter((p) => p.departamento === this.areaEdicion()));
 
   // Ventana: nueva versión
   modalVersion = signal(false);
@@ -179,6 +190,11 @@ export class DetalleDocumentoComponent implements OnInit {
       next: (entradas) => this.trazabilidad.set(entradas),
       error: () => this.trazabilidad.set([]),
     });
+  }
+
+  // El panel de trámite avisa cuando algo cambió (envío, reasignación, archivo...)
+  alCambiarTramite(): void {
+    this.cargar(false);
   }
 
   // ---------- Ver y descargar versiones ----------
@@ -257,7 +273,7 @@ export class DetalleDocumentoComponent implements OnInit {
     });
   }
 
-  // ---------- Cambio de estado (revisión, aprobación, rechazo y flujo) ----------
+  // ---------- Cambio de estado (revisión, aprobación, rechazo y archivo) ----------
 
   etiquetaTransicion(t: Transicion): string {
     const actual = this.documento()?.estado;
@@ -268,10 +284,8 @@ export class DetalleDocumentoComponent implements OnInit {
         return '✓ Aprobar';
       case 'Rechazado':
         return '✗ Rechazar';
-      case 'Distribuido':
-        return 'Marcar como distribuido';
       case 'Archivado':
-        return 'Archivar';
+        return 'Archivar documento';
       default:
         return 'Recuperar del archivo';
     }
@@ -318,6 +332,8 @@ export class DetalleDocumentoComponent implements OnInit {
         this.verificacion.set(null);
         this.mostrar('ok', res.mensaje);
         this.cargar(false);
+        this.tramites.refrescar();
+        this.pendientes.cargar();
       },
       error: async (err) => {
         this.cambiandoEstado.set(false);
@@ -339,40 +355,51 @@ export class DetalleDocumentoComponent implements OnInit {
       motivo: doc.motivo ?? '',
       observacion: doc.observacion ?? '',
       fechaOficio: doc.fechaOficio ? doc.fechaOficio.slice(0, 10) : '',
-      destinatarioNombre: doc.destinatario.nombre,
-      destinatarioDepartamento: doc.destinatario.departamento,
+      personaId: doc.destinatario.usuario ?? '',
     };
+    this.areaEdicion.set(doc.destinatario.departamento);
     this.errorEdicion.set('');
     this.modalEditar.set(true);
+
+    this.directorio.cargar();
+    this.areasServicio.listar().subscribe({
+      next: (areas) => this.areas.set(areas),
+      error: () => this.errorEdicion.set('No se pudo cargar la lista de áreas.'),
+    });
   }
 
   cerrarEditar(): void {
     this.modalEditar.set(false);
   }
 
+  cambiarAreaEdicion(area: string): void {
+    this.areaEdicion.set(area);
+    this.edicion.personaId = '';
+  }
+
   guardarEdicion(): void {
     const e = this.edicion;
-    if (!e.asunto.trim() || !e.destinatarioNombre.trim() || !e.destinatarioDepartamento.trim()) {
-      this.errorEdicion.set('Complete el asunto y los datos del destinatario.');
+    if (!e.asunto.trim()) {
+      this.errorEdicion.set('El asunto no puede quedar vacío.');
+      return;
+    }
+    if (!this.areaEdicion()) {
+      this.errorEdicion.set('Seleccione el área del destinatario.');
       return;
     }
 
-    const destinatario: Persona = {
-      nombre: e.destinatarioNombre.trim(),
-      departamento: e.destinatarioDepartamento.trim(),
-    };
     const datos: {
       asunto: string;
       tipoDocumento: string;
       observacion: string;
-      destinatario: Persona;
+      destinatario: { departamento: string; usuario?: string };
       motivo?: string;
       fechaOficio?: string;
     } = {
       asunto: e.asunto.trim(),
       tipoDocumento: e.tipoDocumento,
       observacion: e.observacion.trim(),
-      destinatario,
+      destinatario: { departamento: this.areaEdicion(), ...(e.personaId ? { usuario: e.personaId } : {}) },
     };
     // Los documentos antiguos pueden no tener motivo ni fecha: solo se envían si se completaron
     if (e.motivo.trim()) {

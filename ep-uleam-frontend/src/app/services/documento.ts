@@ -14,7 +14,14 @@ export const ESTADOS_DOCUMENTO: EstadoDocumento[] = [
   'Archivado',
 ];
 
-export const TIPOS_DOCUMENTO = ['Oficio', 'Memorando', 'Resolución', 'Informe Técnico', 'Contrato'];
+export const TIPOS_DOCUMENTO = ['Oficio', 'Memorando', 'Circular', 'Nota', 'Resolución', 'Informe Técnico', 'Contrato'];
+
+// Estos tipos deben ser aprobados por Gerencia antes de enviarse; los demás se envían directamente
+export const TIPOS_CON_APROBACION = ['Oficio', 'Resolución', 'Contrato'];
+export const requiereAprobacion = (tipo: string): boolean => TIPOS_CON_APROBACION.includes(tipo);
+
+export type Prioridad = 'Normal' | 'Urgente' | 'Extemporáneo';
+export const PRIORIDADES: Prioridad[] = ['Normal', 'Urgente', 'Extemporáneo'];
 
 // Un documento puede tener anexos de distintos tipos documentales
 export const TIPOS_ANEXO = [...TIPOS_DOCUMENTO, 'Factura', 'Certificado', 'Fotografía', 'Otro'];
@@ -27,6 +34,7 @@ export const TAMANO_MAXIMO_BYTES = 20 * 1024 * 1024;
 export interface Persona {
   nombre: string;
   departamento: string;
+  usuario?: string; // id del usuario, si el destinatario es una persona concreta
 }
 
 // Decisión de Gerencia sobre una versión del documento
@@ -48,6 +56,7 @@ export interface AccionesDocumento {
   modificar: boolean;
   versionar: boolean;
   anexar: boolean;
+  enviar?: boolean;
 }
 
 export interface Documento {
@@ -70,10 +79,16 @@ export interface Documento {
   creadoPor: { id: string; nombre: string };
   createdAt: string;
   updatedAt: string;
+  // Trámite
+  prioridad?: Prioridad;
+  confidencial?: boolean;
+  fechaLimite?: string | null;
+  enviadoEn?: string | null;
   // Solo vienen al consultar un documento individual
   revisiones?: Revision[];
   transicionesPermitidas?: Transicion[];
   acciones?: AccionesDocumento;
+  referenciaDocumento?: { _id: string; codigoTramite: string; asunto: string } | null;
 }
 
 export interface Version {
@@ -126,6 +141,16 @@ export interface ResultadoVerificacion {
   anexos?: AnexoVerificado[];
 }
 
+// Datos para enviar un documento a otras personas
+export interface DatosEnvio {
+  para: string[];
+  copia: string[];
+  prioridad?: Prioridad;
+  fechaLimite?: string; // AAAA-MM-DD
+  confidencial?: boolean;
+  comentario?: string;
+}
+
 export type AccionBitacora =
   | 'REGISTRO_DOCUMENTO'
   | 'MODIFICACION_DOCUMENTO'
@@ -136,6 +161,13 @@ export type AccionBitacora =
   | 'CAMBIO_ESTADO'
   | 'REVISION_APROBADA'
   | 'REVISION_RECHAZADA'
+  | 'DOCUMENTO_ENVIADO'
+  | 'DOCUMENTO_LEIDO'
+  | 'DOCUMENTO_REASIGNADO'
+  | 'DOCUMENTO_INFORMADO'
+  | 'DOCUMENTO_RESPONDIDO'
+  | 'TRAMITE_ARCHIVADO'
+  | 'TRAMITE_RESTAURADO'
   | 'VERIFICACION_INTEGRIDAD'
   | 'ALERTA_ALTERACION'
   | 'DESBLOQUEO'
@@ -143,6 +175,7 @@ export type AccionBitacora =
   | 'INICIO_SESION'
   | 'LOGIN_FALLIDO'
   | 'CUENTA_BLOQUEADA'
+  | 'CUENTA_DESBLOQUEADA'
   | 'CIERRE_SESION'
   | 'CAMBIO_PASSWORD'
   | 'SOLICITUD_RECUPERACION'
@@ -150,8 +183,15 @@ export type AccionBitacora =
   | 'USUARIO_REGISTRADO'
   | 'USUARIO_BAJA'
   | 'USUARIO_REACTIVADO'
+  | 'USUARIO_AREA_MODIFICADA'
   | 'ROLES_MODIFICADOS'
-  | 'PERMISOS_MODIFICADOS';
+  | 'PERMISOS_MODIFICADOS'
+  | 'ROL_CREADO'
+  | 'ROL_MODIFICADO'
+  | 'ROL_ELIMINADO'
+  | 'AREA_CREADA'
+  | 'AREA_MODIFICADA'
+  | 'AREA_ELIMINADA';
 
 export interface EntradaBitacora {
   _id: string;
@@ -194,6 +234,13 @@ const ETIQUETAS_ACCION: Record<string, string> = {
   CAMBIO_ESTADO: 'Cambio de estado',
   REVISION_APROBADA: 'Documento aprobado',
   REVISION_RECHAZADA: 'Documento rechazado',
+  DOCUMENTO_ENVIADO: 'Documento enviado',
+  DOCUMENTO_LEIDO: 'Documento leído',
+  DOCUMENTO_REASIGNADO: 'Documento reasignado',
+  DOCUMENTO_INFORMADO: 'Documento informado',
+  DOCUMENTO_RESPONDIDO: 'Documento respondido',
+  TRAMITE_ARCHIVADO: 'Trámite archivado',
+  TRAMITE_RESTAURADO: 'Trámite restaurado',
   VERIFICACION_INTEGRIDAD: 'Verificación de integridad',
   ALERTA_ALTERACION: 'Alerta de alteración',
   DESBLOQUEO: 'Desbloqueo de documento',
@@ -201,6 +248,7 @@ const ETIQUETAS_ACCION: Record<string, string> = {
   INICIO_SESION: 'Inicio de sesión',
   LOGIN_FALLIDO: 'Intento de acceso fallido',
   CUENTA_BLOQUEADA: 'Cuenta bloqueada',
+  CUENTA_DESBLOQUEADA: 'Cuenta desbloqueada',
   CIERRE_SESION: 'Cierre de sesión',
   CAMBIO_PASSWORD: 'Cambio de contraseña',
   SOLICITUD_RECUPERACION: 'Solicitud de recuperación',
@@ -208,8 +256,15 @@ const ETIQUETAS_ACCION: Record<string, string> = {
   USUARIO_REGISTRADO: 'Usuario registrado',
   USUARIO_BAJA: 'Usuario dado de baja',
   USUARIO_REACTIVADO: 'Usuario reactivado',
+  USUARIO_AREA_MODIFICADA: 'Área de usuario modificada',
   ROLES_MODIFICADOS: 'Roles modificados',
   PERMISOS_MODIFICADOS: 'Permisos modificados',
+  ROL_CREADO: 'Rol creado',
+  ROL_MODIFICADO: 'Rol modificado',
+  ROL_ELIMINADO: 'Rol eliminado',
+  AREA_CREADA: 'Área creada',
+  AREA_MODIFICADA: 'Área modificada',
+  AREA_ELIMINADA: 'Área eliminada',
 };
 
 export const etiquetaAccion = (accion: string): string => ETIQUETAS_ACCION[accion] ?? accion;
@@ -217,11 +272,13 @@ export const etiquetaAccion = (accion: string): string => ETIQUETAS_ACCION[accio
 // Color de la insignia: rojo = alerta, verde = comprobación o restablecimiento, azul = el resto
 export const claseAccion = (accion: string): string => {
   if (
-    ['ALERTA_ALTERACION', 'CUENTA_BLOQUEADA', 'LOGIN_FALLIDO', 'USUARIO_BAJA', 'REVISION_RECHAZADA'].includes(accion)
+    ['ALERTA_ALTERACION', 'CUENTA_BLOQUEADA', 'LOGIN_FALLIDO', 'USUARIO_BAJA', 'REVISION_RECHAZADA', 'ROL_ELIMINADO', 'AREA_ELIMINADA'].includes(accion)
   ) {
     return 'alerta';
   }
-  if (['VERIFICACION_INTEGRIDAD', 'DESBLOQUEO', 'USUARIO_REACTIVADO', 'REVISION_APROBADA'].includes(accion)) {
+  if (
+    ['VERIFICACION_INTEGRIDAD', 'DESBLOQUEO', 'CUENTA_DESBLOQUEADA', 'USUARIO_REACTIVADO', 'REVISION_APROBADA', 'DOCUMENTO_RESPONDIDO'].includes(accion)
+  ) {
     return 'ok';
   }
   return 'neutra';
@@ -301,7 +358,7 @@ export class DocumentoService {
       motivo?: string;
       observacion?: string;
       fechaOficio?: string;
-      destinatario?: Persona;
+      destinatario?: { usuario?: string; departamento?: string; nombre?: string };
     }
   ): Observable<{ mensaje: string; documento: Documento }> {
     return this.http.patch<{ mensaje: string; documento: Documento }>(`${this.url}/${id}`, datos);
@@ -317,6 +374,11 @@ export class DocumentoService {
       estado,
       observacion,
     });
+  }
+
+  // Envía el documento a otras personas (Para y Con copia)
+  enviarDocumento(id: string, datos: DatosEnvio): Observable<{ mensaje: string; documento: Documento }> {
+    return this.http.post<{ mensaje: string; documento: Documento }>(`${this.url}/${id}/enviar`, datos);
   }
 
   listarVersiones(id: string): Observable<Version[]> {

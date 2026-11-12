@@ -1,0 +1,116 @@
+<div class="pagina">
+  <div class="encabezado">
+    <div>
+      <h2>{{ bandeja().icono }} {{ bandeja().titulo }}</h2>
+      <p class="sub">{{ bandeja().descripcion }}</p>
+    </div>
+    @if (puedeRegistrar) {
+      <a class="btn-primario enlace-boton" routerLink="/dashboard/documentos/nuevo">+ Nuevo documento</a>
+    }
+  </div>
+
+  <div class="pestanas">
+    @for (b of bandejas; track b.clave) {
+      <a class="pestana" [routerLink]="['/dashboard/bandejas', b.clave]" routerLinkActive="activa">
+        {{ b.icono }} {{ b.titulo }}
+        @if (contador(b.clave); as c) {
+          <span class="numero" [class.destacado]="c.destacar">{{ c.valor }}</span>
+        }
+      </a>
+    }
+  </div>
+
+  <div class="barra">
+    <input type="text" class="buscador" [value]="texto()" (input)="alBuscar($event)"
+           placeholder="🔍 Buscar por código, asunto, remitente o tipo...">
+    @if (bandeja().clave === 'recibidos') {
+      <label class="filtro-vencidos" [class.activo]="soloVencidos()">
+        <input type="checkbox" [checked]="soloVencidos()" (change)="alternarVencidos()">
+        Solo plazos vencidos
+        @if (vencidos() > 0) {
+          <span class="numero destacado">{{ vencidos() }}</span>
+        }
+      </label>
+    }
+  </div>
+
+  <div class="tabla-caja">
+    @if (cargando()) {
+      <div class="estado">Cargando...</div>
+    } @else if (error()) {
+      <div class="estado error">{{ error() }}</div>
+    } @else if (items().length === 0) {
+      <div class="estado">
+        @if (texto() || soloVencidos()) {
+          No se encontraron documentos con esos criterios.
+        } @else {
+          {{ bandeja().vacio }}
+        }
+      </div>
+    } @else {
+      <div class="tabla-scroll">
+        <table class="tabla-bandeja">
+          <thead>
+            <tr>
+              <th class="marca"></th>
+              <th>Documento</th>
+              <th>{{ columnaOrigen() }}</th>
+              <th>Fecha</th>
+              <th>Plazo</th>
+              <th>Estado</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (f of items(); track f._id) {
+              <tr class="fila" [class.sin-leer]="f.sinLeer" (click)="abrir(f)">
+                <td class="marca">
+                  @if (f.sinLeer) {
+                    <span class="punto" title="Sin leer"></span>
+                  }
+                </td>
+                <td>
+                  <span class="codigo">{{ f.codigoTramite }}</span>
+                  <span class="asunto">{{ f.asunto }}</span>
+                  <span class="meta">
+                    {{ f.tipoDocumento }}
+                    @if (f.prioridad && f.prioridad !== 'Normal') {
+                      <span class="badge-prioridad" [class.urgente]="f.prioridad === 'Urgente'">{{ f.prioridad }}</span>
+                    }
+                    @if (f.confidencial) {
+                      <span class="badge-confidencial">🔒 Confidencial</span>
+                    }
+                  </span>
+                </td>
+                <td>
+                  {{ f.de?.nombre }}<br>
+                  <span class="sub">{{ f.de?.departamento }}</span>
+                  @if (rotuloTipo(f)) {
+                    <br><span class="insignia neutra">{{ rotuloTipo(f) }}</span>
+                  }
+                </td>
+                <td class="nowrap">{{ f.fecha | date: 'dd MMM yyyy, HH:mm' }}</td>
+                <td>
+                  @if (f.tipo === 'para' && f.fechaLimite) {
+                    @let s = semaforo(f.fechaLimite, f.estado);
+                    <span class="semaforo" [class]="'semaforo ' + s.clase">{{ s.texto }}</span>
+                  } @else {
+                    <span class="sub">—</span>
+                  }
+                </td>
+                <td>
+                  <span class="status-badge" [class]="'status-badge ' + claseEstado(f.estadoDocumento)">{{ f.estadoDocumento }}</span>
+                  @if (f.bloqueado) {
+                    <span class="badge-bloqueado">🔒</span>
+                  }
+                  @if (estadoTramite(f)) {
+                    <br><span class="sub">{{ estadoTramite(f) }}</span>
+                  }
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  </div>
+</div>

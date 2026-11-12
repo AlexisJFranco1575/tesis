@@ -6,13 +6,63 @@
     </div>
     <nav class="nav-menu">
       @if (verDocumentos()) {
-        <a routerLink="/dashboard/documentos" class="nav-item" routerLinkActive="active">
-          <span class="icon">📄</span> Documentos
+        <div class="nav-grupo">Trámite</div>
+        <a routerLink="/dashboard/bandejas/recibidos" class="nav-item" routerLinkActive="active">
+          <span class="icon">📥</span> Recibidos
+          @if (recibidosSinLeer() > 0) {
+            <span class="badge-menu" title="Sin leer">{{ recibidosSinLeer() }}</span>
+          }
+          @if (recibidosVencidos() > 0) {
+            <span class="badge-menu vencido" title="Con plazo vencido">⏰ {{ recibidosVencidos() }}</span>
+          }
         </a>
+        <a routerLink="/dashboard/bandejas/elaboracion" class="nav-item" routerLinkActive="active">
+          <span class="icon">📝</span> En elaboración
+        </a>
+        <a routerLink="/dashboard/bandejas/enviados" class="nav-item" routerLinkActive="active">
+          <span class="icon">📤</span> Enviados
+        </a>
+        <a routerLink="/dashboard/bandejas/informados" class="nav-item" routerLinkActive="active">
+          <span class="icon">ℹ️</span> Informados
+          @if (informadosSinLeer() > 0) {
+            <span class="badge-menu" title="Sin leer">{{ informadosSinLeer() }}</span>
+          }
+        </a>
+        <a routerLink="/dashboard/bandejas/reasignados" class="nav-item" routerLinkActive="active">
+          <span class="icon">🔁</span> Reasignados
+        </a>
+        <a routerLink="/dashboard/bandejas/archivados" class="nav-item" routerLinkActive="active">
+          <span class="icon">🗄️</span> Archivados
+        </a>
+
+        <div class="nav-grupo">Repositorio</div>
+        <a routerLink="/dashboard/documentos" class="nav-item" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }">
+          <span class="icon">📄</span> Documentos
+          @if (pendientesDocumentos() > 0) {
+            <span class="badge-menu">{{ pendientesDocumentos() }}</span>
+          }
+        </a>
+      }
+
+      @if (verUsuarios() || verRoles() || verAreas() || verBitacora()) {
+        <div class="nav-grupo">Administración</div>
       }
       @if (verUsuarios()) {
         <a routerLink="/dashboard/usuarios" class="nav-item" routerLinkActive="active">
           <span class="icon">👥</span> Usuarios
+          @if (pendientesUsuarios() > 0) {
+            <span class="badge-menu">{{ pendientesUsuarios() }}</span>
+          }
+        </a>
+      }
+      @if (verRoles()) {
+        <a routerLink="/dashboard/roles" class="nav-item" routerLinkActive="active">
+          <span class="icon">🧩</span> Roles
+        </a>
+      }
+      @if (verAreas()) {
+        <a routerLink="/dashboard/areas" class="nav-item" routerLinkActive="active">
+          <span class="icon">🏢</span> Áreas
         </a>
       }
       @if (verBitacora()) {
@@ -35,7 +85,7 @@
   <main class="main-layout">
     <header class="top-nav">
       <div class="search-bar">
-        <input type="text" placeholder="Buscar documento por código o hash...">
+        <input #q type="text" placeholder="Buscar documento y presionar Enter..." (keyup.enter)="buscar(q.value)">
       </div>
       @if (usuarioActual(); as u) {
         <div class="user-info">
@@ -49,12 +99,15 @@
       }
     </header>
 
-    <!-- Aquí se cargan las pantallas hijas (documentos, detalle, usuarios, bitácora) -->
+    <!-- Aquí se cargan las pantallas hijas -->
     <div class="content-area">
       <router-outlet></router-outlet>
     </div>
   </main>
 </div>
+
+<!-- Avisos emergentes (pendientes y notificaciones nuevas) -->
+<app-avisos></app-avisos>
 
 <!-- Aviso de cierre por inactividad -->
 @if (inactividad.advertencia()) {

@@ -17,7 +17,8 @@ export interface UsuarioAdmin {
   estado: boolean; // false = dado de baja
   fechaBaja: string | null;
   motivoBaja: string;
-  bloqueado: boolean;
+  bloqueado: boolean; // ya descuenta los bloqueos vencidos
+  bloqueadoHasta: string | null;
   debeCambiarPassword: boolean;
   solicitoRecuperacion: boolean;
   solicitudRecuperacionEn: string | null;
@@ -25,9 +26,16 @@ export interface UsuarioAdmin {
   createdAt: string;
 }
 
+export interface RolInfo {
+  descripcion: string;
+  protegido: boolean;
+}
+
 export interface Catalogo {
   roles: string[];
+  rolesInfo: Record<string, RolInfo>;
   permisos: Record<string, string>; // código → descripción
+  permisosSensibles: string[];
   permisosPorRol: Record<string, string[]>;
 }
 
@@ -63,12 +71,21 @@ export class UsuarioService {
     return this.http.post<RespuestaUsuario>(this.url, datos);
   }
 
+  cambiarArea(id: string, departamento: string): Observable<RespuestaUsuario> {
+    return this.http.patch<RespuestaUsuario>(`${this.url}/${id}/area`, { departamento });
+  }
+
   darDeBaja(id: string, motivo: string): Observable<RespuestaUsuario> {
     return this.http.patch<RespuestaUsuario>(`${this.url}/${id}/baja`, { motivo });
   }
 
   reactivar(id: string): Observable<RespuestaUsuario> {
     return this.http.patch<RespuestaUsuario>(`${this.url}/${id}/reactivar`, {});
+  }
+
+  // Desbloquea la cuenta sin cambiar la contraseña
+  desbloquear(id: string): Observable<RespuestaUsuario> {
+    return this.http.post<RespuestaUsuario>(`${this.url}/${id}/desbloquear`, {});
   }
 
   cambiarRoles(id: string, roles: string[]): Observable<RespuestaUsuario> {

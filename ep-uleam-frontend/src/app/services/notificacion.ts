@@ -2,6 +2,7 @@ import { Injectable, inject, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable, tap } from 'rxjs';
 import { API_URL } from '../config';
+import { AvisosService } from './avisos';
 
 export interface Notificacion {
   _id: string;
@@ -21,15 +22,29 @@ interface RespuestaNotificaciones {
 
 const INTERVALO_MS = 30 * 1000;
 
+// Pantalla a la que lleva una notificación
+export const destinoDeNotificacion = (n: Notificacion): string | undefined => {
+  if (n.documento) {
+    return `/dashboard/documentos/${n.documento}`;
+  }
+  if (n.titulo === 'Cuenta bloqueada' || n.titulo === 'Solicitud de recuperación') {
+    return '/dashboard/usuarios';
+  }
+  return undefined;
+};
+
 @Injectable({ providedIn: 'root' })
 export class NotificacionService {
   private http = inject(HttpClient);
+  private avisos = inject(AvisosService);
   private readonly url = `${API_URL}/notificaciones`;
 
   readonly notificaciones = signal<Notificacion[]>([]);
   readonly noLeidas = signal(0);
 
   private reloj: ReturnType<typeof setInterval> | null = null;
+  private vistas = new Set<string>();
+  private primeraCarga = true;
 
   // Empieza a consultar periódicamente (al abrir el dashboard)
   iniciar(): void {
@@ -48,11 +63,30 @@ export class NotificacionService {
     }
     this.notificaciones.set([]);
     this.noLeidas.set(0);
+    this.vistas.clear();
+    this.primeraCarga = true;
   }
 
   cargar(): void {
     this.http.get<RespuestaNotificaciones>(this.url, { params: { limite: 30 } }).subscribe({
       next: (respuesta) => {
+        // En la primera carga no se avisa (para eso está el resumen de pendientes);
+        // después, cada notificación nueva sin leer aparece como aviso emergente
+        if (!this.primeraCarga) {
+          for (const n of respuesta.notificaciones) {
+            if (!n.leida && !this.vistas.has(n._id)) {
+              this.avisos.mostrar({
+                tipo: n.tipo === 'ALERTA' ? 'alerta' : 'info',
+                titulo: n.titulo,
+                mensaje: n.mensaje,
+                ruta: destinoDeNotificacion(n),
+              });
+            }
+          }
+        }
+        respuesta.notificaciones.forEach((n) => this.vistas.add(n._id));
+        this.primeraCarga = false;
+
         this.notificaciones.set(respuesta.notificaciones);
         this.noLeidas.set(respuesta.noLeidas);
       },

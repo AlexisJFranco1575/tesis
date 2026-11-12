@@ -1,0 +1,13 @@
+<div class="pila">
+  @for (a of avisos(); track a.id) {
+    <div class="aviso" [class]="'aviso ' + a.tipo" [class.con-enlace]="!!a.ruta" (click)="abrir(a)">
+      <div class="cuerpo">
+        <strong>{{ a.titulo }}</strong>
+        @if (a.mensaje) {
+          <span>{{ a.mensaje }}</span>
+        }
+      </div>
+      <button type="button" class="cerrar" title="Cerrar" (click)="cerrar($event, a)">✕</button>
+    </div>
+  }
+</div>
