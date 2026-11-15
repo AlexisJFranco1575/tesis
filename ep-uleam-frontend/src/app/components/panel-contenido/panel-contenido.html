@@ -1,0 +1,56 @@
+@if (documento().origen === 'redactado') {
+  <div class="tarjeta">
+    <div class="cabecera">
+      <h3>Contenido del documento</h3>
+      @if (documento().acciones?.editarContenido) {
+        <button class="btn-secundario" type="button" (click)="abrir()">✎ Editar contenido</button>
+      }
+    </div>
+
+    @if (mensaje(); as m) {
+      <div class="aviso" [class.ok]="m.tipo === 'ok'" [class.error]="m.tipo === 'error'">{{ m.texto }}</div>
+    }
+
+    <p class="nota">Texto redactado en el sistema. Al editarlo se genera una nueva versión del PDF con su propio hash; las anteriores se conservan.</p>
+
+    <div class="contenido">
+      @for (p of parrafos(); track $index) {
+        <p>{{ p }}</p>
+      }
+    </div>
+  </div>
+}
+
+@if (modal()) {
+  <div class="modal-fondo" (click)="cerrar()">
+    <div class="modal modal-ancho" (click)="$event.stopPropagation()">
+      <div class="modal-encabezado">
+        <h3>Editar contenido</h3>
+        <button class="btn-cerrar" type="button" (click)="cerrar()">✕</button>
+      </div>
+
+      <form class="modal-cuerpo" (ngSubmit)="guardar()">
+        <div class="campo">
+          <label>Contenido</label>
+          <textarea name="cuerpo" class="area-texto" [(ngModel)]="cuerpo" rows="14" [maxlength]="limite"></textarea>
+          <span class="ayuda contador" [class.excedido]="cuerpo.length > limite">{{ cuerpo.length }} / {{ limite }} caracteres</span>
+        </div>
+        <div class="campo">
+          <label>Motivo del cambio (opcional)</label>
+          <input type="text" name="comentario" [(ngModel)]="comentario" placeholder="Ej. Corrección de cifras">
+        </div>
+
+        @if (error()) {
+          <div class="modal-error">{{ error() }}</div>
+        }
+
+        <div class="modal-pie">
+          <button class="btn-secundario" type="button" (click)="cerrar()">Cancelar</button>
+          <button class="btn-primario" type="submit" [disabled]="guardando()">
+            {{ guardando() ? 'Generando PDF...' : 'Guardar y generar nueva versión' }}
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+}

@@ -9,7 +9,7 @@ import { DetalleDocumentoComponent } from './detalle-documento';
 const documentoDePrueba: Documento = {
   _id: 'abc123',
   codigoTramite: 'EP-ULEAM-2026-0001',
-  numeroOficio: 'OF-2026-001',
+  numeroOficio: 'SG-2026-0001-OFI',
   fechaOficio: '2026-10-15T00:00:00.000Z',
   motivo: 'Requerimiento del cuarto trimestre',
   observacion: '',
@@ -22,6 +22,7 @@ const documentoDePrueba: Documento = {
   hashActual: 'a'.repeat(64),
   bloqueado: false,
   motivoBloqueo: '',
+  origen: 'cargado',
   creadoPor: { id: '1', nombre: 'Admin Sistema' },
   createdAt: '2026-10-15T10:00:00.000Z',
   updatedAt: '2026-10-15T10:00:00.000Z',
@@ -96,11 +97,20 @@ describe('DetalleDocumentoComponent', () => {
     expect(component.formatearTamano(0)).toBe('—');
   });
 
-  it('solo permite abrir en pantalla los formatos visibles', () => {
+  it('solo permite abrir en pantalla los anexos con formatos visibles', () => {
     cargarTodo();
 
     expect(component.puedeVerAnexo(anexoDePrueba)).toBe(true);
     expect(component.puedeVerAnexo({ ...anexoDePrueba, extension: '.docx' })).toBe(false);
+  });
+
+  it('solo los PDF se abren en pantalla; Word y Excel se descargan', () => {
+    cargarTodo();
+
+    expect(component.puedeVerVersion(versionDePrueba)).toBe(true);
+    expect(component.puedeVerVersion({ ...versionDePrueba, nombreOriginal: 'INFORME.PDF' })).toBe(true);
+    expect(component.puedeVerVersion({ ...versionDePrueba, nombreOriginal: 'informe.docx' })).toBe(false);
+    expect(component.puedeVerVersion({ ...versionDePrueba, nombreOriginal: 'datos.xlsx' })).toBe(false);
   });
 
   it('valida la carga de anexos antes de enviarla', () => {
@@ -113,6 +123,17 @@ describe('DetalleDocumentoComponent', () => {
     component.archivosAnexo.set(demasiados);
     component.guardarAnexos();
     expect(component.errorAnexos()).toContain('hasta 10 archivos');
+  });
+
+  it('exige el archivo y el motivo al crear una nueva versión', () => {
+    cargarTodo();
+
+    component.guardarVersion();
+    expect(component.errorVersion()).toContain('Debe adjuntar el archivo');
+
+    component.archivo = new File(['x'], 'nuevo.docx');
+    component.guardarVersion();
+    expect(component.errorVersion()).toBe('Indique el motivo del cambio.');
   });
 
   it('al editar, el destinatario se elige de la lista de áreas y exige un área', () => {

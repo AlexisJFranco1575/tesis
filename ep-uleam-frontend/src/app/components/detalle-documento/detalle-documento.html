@@ -14,7 +14,7 @@
         <p class="sub">
           {{ doc.tipoDocumento }}
           @if (doc.numeroOficio) {
-            · Oficio {{ doc.numeroOficio }}
+            · N.º {{ doc.numeroOficio }}
           }
           · versión actual v{{ doc.versionActual }}
           @if (doc.prioridad && doc.prioridad !== 'Normal') {
@@ -190,9 +190,9 @@
       <div class="info-grid">
         <div><span class="etiqueta">Asunto</span><span>{{ doc.asunto }}</span></div>
         <div><span class="etiqueta">Tipo de documento</span><span>{{ doc.tipoDocumento }}</span></div>
-        <div><span class="etiqueta">Número de oficio</span><span>{{ doc.numeroOficio || '—' }}</span></div>
+        <div><span class="etiqueta">Número del documento</span><span>{{ doc.numeroOficio || '—' }}</span></div>
         <div>
-          <span class="etiqueta">Fecha del oficio</span>
+          <span class="etiqueta">Fecha del documento</span>
           <span>
             @if (doc.fechaOficio) {
               {{ doc.fechaOficio | date: 'dd MMM yyyy' : 'UTC' }}
@@ -209,6 +209,7 @@
         <div><span class="etiqueta">Destinatario principal</span><span>{{ doc.destinatario.nombre }} ({{ doc.destinatario.departamento }})</span></div>
         <div><span class="etiqueta">Prioridad</span><span>{{ doc.prioridad || 'Normal' }}</span></div>
         <div><span class="etiqueta">Confidencialidad</span><span>{{ doc.confidencial ? '🔒 Confidencial' : 'Normal' }}</span></div>
+        <div><span class="etiqueta">Origen</span><span>{{ doc.origen === 'redactado' ? 'Redactado en el sistema' : 'Archivo cargado' }}</span></div>
         @if (doc.fechaLimite) {
           <div><span class="etiqueta">Plazo de respuesta</span><span>{{ doc.fechaLimite | date: 'dd MMM yyyy' }}</span></div>
         }
@@ -223,6 +224,9 @@
         </div>
       </div>
     </div>
+
+    <!-- Contenido (solo documentos redactados en el sistema) -->
+    <app-panel-contenido [documento]="doc" (cambio)="alCambiarTramite()" />
 
     <!-- Historial de revisiones de Gerencia -->
     @if (revisiones().length > 0) {
@@ -279,7 +283,9 @@
                 <td><code class="hash" [title]="ver.hashArchivo">{{ hashCorto(ver.hashArchivo) }}</code></td>
                 @if (puedeDescargar) {
                   <td class="celda-acciones">
-                    <button class="btn-icon" type="button" title="Ver PDF" (click)="verVersion(ver)">👁</button>
+                    @if (puedeVerVersion(ver)) {
+                      <button class="btn-icon" type="button" title="Ver PDF" (click)="verVersion(ver)">👁</button>
+                    }
                     <button class="btn-icon" type="button" title="Descargar" (click)="descargar(ver)">⬇</button>
                   </td>
                 }
@@ -414,7 +420,7 @@
       </div>
 
       <form class="modal-cuerpo" (ngSubmit)="guardarEdicion()">
-        <p class="sub">Los datos anteriores quedan registrados en la trazabilidad. El número de oficio y el código no se modifican; el archivo se cambia creando una nueva versión.</p>
+        <p class="sub">Los datos anteriores quedan registrados en la trazabilidad. El número y el código no se modifican. En un documento redactado en el sistema, si cambia el asunto, el tipo, la fecha o el destinatario, se genera una nueva versión del PDF.</p>
         <div class="campo">
           <label>Asunto</label>
           <input type="text" name="asunto" [(ngModel)]="edicion.asunto">
@@ -429,7 +435,7 @@
             </select>
           </div>
           <div class="campo">
-            <label>Fecha del oficio</label>
+            <label>Fecha del documento</label>
             <input type="date" name="fechaOficio" [(ngModel)]="edicion.fechaOficio">
           </div>
         </div>
@@ -477,24 +483,28 @@
   </div>
 }
 
-<!-- Ventana: nueva versión -->
+<!-- Ventana: nueva versión con un archivo -->
 @if (modalVersion()) {
   <div class="modal-fondo" (click)="cerrarModalVersion()">
     <div class="modal" (click)="$event.stopPropagation()">
       <div class="modal-encabezado">
-        <h3>Nueva versión</h3>
+        <h3>Nueva versión con un archivo</h3>
         <button class="btn-cerrar" type="button" (click)="cerrarModalVersion()">✕</button>
       </div>
 
       <form class="modal-cuerpo" (ngSubmit)="guardarVersion()">
-        <p class="sub">La versión anterior se conserva. La nueva tendrá su propio hash SHA-256.</p>
+        <p class="sub">La versión anterior se conserva. La nueva tendrá su propio hash SHA-256.
+          @if (documento()?.origen === 'redactado') {
+            Al subir un archivo, el documento deja de editarse desde el redactor.
+          }
+        </p>
         <div class="campo">
           <label>Motivo del cambio</label>
           <input type="text" name="comentario" [(ngModel)]="comentario" placeholder="Ej. Corrección de cifras">
         </div>
         <div class="campo">
-          <label>Archivo PDF</label>
-          <input type="file" name="archivo" accept="application/pdf" (change)="alSeleccionarArchivo($event)">
+          <label>Archivo (PDF, Word o Excel)</label>
+          <input type="file" name="archivo" [accept]="formatosDocumento" (change)="alSeleccionarArchivo($event)">
         </div>
 
         @if (errorVersion()) {

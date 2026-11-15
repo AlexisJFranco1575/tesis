@@ -31,6 +31,13 @@ export const FORMATOS_ANEXO = '.pdf,.png,.jpg,.jpeg,.docx,.xlsx';
 export const MAX_ANEXOS_POR_CARGA = 10;
 export const TAMANO_MAXIMO_BYTES = 20 * 1024 * 1024;
 
+// Formatos del archivo principal de un documento (o de una nueva versión)
+export const FORMATOS_DOCUMENTO = '.pdf,.docx,.xlsx';
+export const EXTENSIONES_DOCUMENTO = ['.pdf', '.docx', '.xlsx'];
+
+// Máximo de caracteres del contenido de un documento redactado en el sistema
+export const LIMITE_CUERPO = 15000;
+
 export interface Persona {
   nombre: string;
   departamento: string;
@@ -56,13 +63,14 @@ export interface AccionesDocumento {
   modificar: boolean;
   versionar: boolean;
   anexar: boolean;
+  editarContenido?: boolean;
   enviar?: boolean;
 }
 
 export interface Documento {
   _id: string;
   codigoTramite: string;
-  // Datos del oficio (los documentos antiguos pueden no tenerlos)
+  // Número del documento (generado por el sistema o escrito a mano; los documentos antiguos pueden no tenerlo)
   numeroOficio?: string;
   fechaOficio?: string;
   motivo?: string;
@@ -79,6 +87,9 @@ export interface Documento {
   creadoPor: { id: string; nombre: string };
   createdAt: string;
   updatedAt: string;
+  // Contenido: 'redactado' = escrito en el sistema; 'cargado' = archivo ya elaborado
+  origen?: 'redactado' | 'cargado';
+  cuerpo?: string; // solo viene al consultar un documento individual
   // Trámite
   prioridad?: Prioridad;
   confidencial?: boolean;
@@ -149,6 +160,21 @@ export interface DatosEnvio {
   fechaLimite?: string; // AAAA-MM-DD
   confidencial?: boolean;
   comentario?: string;
+}
+
+// Datos para redactar un documento en el sistema (el PDF lo genera el servidor)
+export interface DatosRedaccion {
+  tipoDocumento: string;
+  asunto: string;
+  motivo: string;
+  observacion?: string;
+  fechaOficio?: string; // AAAA-MM-DD; si no se indica, la de hoy
+  numeroOficio?: string; // opcional: si se omite, se genera automáticamente
+  prioridad?: Prioridad;
+  confidencial?: boolean;
+  destinatario: { departamento: string; usuario?: string };
+  referencia?: string;
+  cuerpo: string;
 }
 
 export type AccionBitacora =
@@ -345,9 +371,20 @@ export class DocumentoService {
     return this.http.get<Documento>(`${this.url}/${id}`);
   }
 
-  // Recibe FormData porque se envía el archivo PDF junto con los datos
+  // Registra un documento con un archivo ya elaborado (PDF, Word o Excel).
+  // Recibe FormData porque se envía el archivo junto con los datos
   crearDocumento(datos: FormData): Observable<{ mensaje: string; documento: Documento }> {
     return this.http.post<{ mensaje: string; documento: Documento }>(this.url, datos);
+  }
+
+  // Redacta un documento en el sistema: el servidor genera el PDF con el formato institucional
+  redactarDocumento(datos: DatosRedaccion): Observable<{ mensaje: string; documento: Documento }> {
+    return this.http.post<{ mensaje: string; documento: Documento }>(`${this.url}/redactar`, datos);
+  }
+
+  // Cambia el contenido de un documento redactado: genera una nueva versión del PDF
+  editarContenido(id: string, cuerpo: string, comentario: string): Observable<{ mensaje: string; documento: Documento }> {
+    return this.http.patch<{ mensaje: string; documento: Documento }>(`${this.url}/${id}/contenido`, { cuerpo, comentario });
   }
 
   modificarDocumento(

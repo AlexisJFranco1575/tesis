@@ -2,7 +2,7 @@
   <a class="volver" routerLink="/dashboard/bandejas/elaboracion">← Volver</a>
 
   <h2>{{ referencia() ? 'Responder documento' : 'Nuevo documento' }}</h2>
-  <p class="sub">Elabore el documento. El código lo genera el sistema; al guardarlo podrá enviarlo a sus destinatarios.</p>
+  <p class="sub">El código de trámite y el número del documento los genera el sistema. Al guardar podrá enviarlo a sus destinatarios.</p>
 
   @if (referencia(); as r) {
     <div class="referencia">
@@ -11,103 +11,180 @@
     </div>
   }
 
-  <form class="tarjeta" (ngSubmit)="guardar()">
-    <div class="remitente">
-      <span class="etiqueta">De</span>
-      <strong>{{ yo?.nombreCompleto }}</strong>
-      <span class="sub">· {{ yo?.departamento }}</span>
-    </div>
-
-    <div class="grid">
-      <div class="campo">
-        <label>Tipo de documento</label>
-        <select name="tipo" [ngModel]="tipo()" (ngModelChange)="tipo.set($event)">
-          @for (t of tipos; track t) {
-            <option [value]="t">{{ t }}</option>
-          }
-        </select>
-      </div>
-      <div class="campo">
-        <label>Número de oficio</label>
-        <input type="text" name="numeroOficio" [(ngModel)]="formulario.numeroOficio" placeholder="Ej. MEM-2026-001">
-      </div>
-
-      <div class="campo completo">
-        <div class="aviso-tipo">{{ avisoTipo() }}</div>
-      </div>
-
-      <div class="campo">
-        <label>Fecha del documento</label>
-        <input type="date" name="fechaOficio" [(ngModel)]="formulario.fechaOficio">
-      </div>
-      <div class="campo">
-        <label>Prioridad</label>
-        <select name="prioridad" [(ngModel)]="formulario.prioridad">
-          @for (p of prioridades; track p) {
-            <option [value]="p">{{ p }}</option>
-          }
-        </select>
-      </div>
-
-      <div class="campo completo">
-        <label>Asunto</label>
-        <input type="text" name="asunto" [(ngModel)]="formulario.asunto" placeholder="Ej. Solicitud de presupuesto">
-      </div>
-      <div class="campo completo">
-        <label>Motivo</label>
-        <textarea name="motivo" [(ngModel)]="formulario.motivo" rows="2" placeholder="Razón por la que se emite el documento"></textarea>
-      </div>
-      <div class="campo completo">
-        <label>Observación (opcional)</label>
-        <textarea name="observacion" [(ngModel)]="formulario.observacion" rows="2"></textarea>
-      </div>
-
-      <div class="campo">
-        <label>Dirigido al área</label>
-        <select name="area" [ngModel]="area()" (ngModelChange)="cambiarArea($event)">
-          <option value="">Seleccione un área...</option>
-          @for (o of opcionesArea(); track o.valor) {
-            <option [value]="o.valor">{{ o.etiqueta }}</option>
-          }
-        </select>
-      </div>
-      <div class="campo">
-        <label>Persona (opcional)</label>
-        <select name="personaId" [(ngModel)]="formulario.personaId" [disabled]="!area()">
-          <option value="">Cualquier persona del área</option>
-          @for (p of personasDelArea(); track p.id) {
-            <option [value]="p.id">{{ p.nombre }}</option>
-          }
-        </select>
-      </div>
-      <div class="campo completo">
-        <span class="ayuda">Este es el destinatario principal. Al enviar el documento podrá elegir a todas las personas «Para» y «Con copia».</span>
-      </div>
-
-      <div class="campo completo">
-        <label class="casilla">
-          <input type="checkbox" name="confidencial" [(ngModel)]="formulario.confidencial">
-          🔒 Documento confidencial
-        </label>
-        <span class="ayuda">Solo lo verán las personas que intervienen en el trámite; ni siquiera Gerencia ni los administradores.</span>
-      </div>
-
-      <div class="campo completo">
-        <label>Archivo PDF</label>
-        <input type="file" name="archivo" accept="application/pdf" (change)="alSeleccionarArchivo($event)">
-        <span class="ayuda">Los anexos se agregan después, desde el detalle del documento.</span>
-      </div>
-    </div>
-
-    @if (error()) {
-      <div class="modal-error">{{ error() }}</div>
+  <div class="modos">
+    <button type="button" class="modo" [class.activo]="modo() === 'redactar'" (click)="cambiarModo('redactar')">
+      ✍️ Redactar en el sistema
+    </button>
+    <button type="button" class="modo" [class.activo]="modo() === 'archivo'" (click)="cambiarModo('archivo')">
+      📎 Cargar un archivo existente
+    </button>
+  </div>
+  <p class="descripcion-modo">
+    @if (modo() === 'redactar') {
+      Escriba el contenido y el sistema genera el PDF con el formato institucional (logo, número, fecha, destinatario y firma).
+    } @else {
+      Suba un documento ya elaborado en PDF, Word (.docx) o Excel (.xlsx).
     }
+  </p>
 
-    <div class="pie">
-      <a class="btn-secundario enlace-boton" routerLink="/dashboard/bandejas/elaboracion">Cancelar</a>
-      <button class="btn-primario" type="submit" [disabled]="guardando()">
-        {{ guardando() ? 'Guardando...' : 'Guardar y generar hash' }}
-      </button>
-    </div>
-  </form>
+  <div class="columnas" [class.con-vista]="modo() === 'redactar'">
+
+    <form class="tarjeta" (ngSubmit)="guardar()">
+      <div class="remitente">
+        <span class="etiqueta">De</span>
+        <strong>{{ yo?.nombreCompleto }}</strong>
+        <span class="sub">· {{ yo?.departamento }}</span>
+      </div>
+
+      <div class="grid">
+        <div class="campo">
+          <label>Tipo de documento</label>
+          <select name="tipo" [ngModel]="tipo()" (ngModelChange)="tipo.set($event)">
+            @for (t of tipos; track t) {
+              <option [value]="t">{{ t }}</option>
+            }
+          </select>
+        </div>
+        <div class="campo">
+          <label>Fecha del documento</label>
+          <input type="date" name="fechaOficio" [(ngModel)]="formulario.fechaOficio">
+        </div>
+
+        <div class="campo completo">
+          <div class="aviso-tipo">{{ avisoTipo() }}</div>
+        </div>
+
+        <div class="campo">
+          <label>Número (opcional)</label>
+          <input type="text" name="numeroOficio" [(ngModel)]="formulario.numeroOficio" placeholder="Se genera automáticamente">
+          <span class="ayuda">Déjelo vacío para que el sistema lo asigne por área, tipo y año.</span>
+        </div>
+        <div class="campo">
+          <label>Prioridad</label>
+          <select name="prioridad" [(ngModel)]="formulario.prioridad">
+            @for (p of prioridades; track p) {
+              <option [value]="p">{{ p }}</option>
+            }
+          </select>
+        </div>
+
+        <div class="campo completo">
+          <label>Asunto</label>
+          <input type="text" name="asunto" [(ngModel)]="formulario.asunto" placeholder="Ej. Solicitud de renovación de equipos">
+        </div>
+        <div class="campo completo">
+          <label>Motivo</label>
+          <textarea name="motivo" [(ngModel)]="formulario.motivo" rows="2" placeholder="Razón por la que se emite el documento (uso interno)"></textarea>
+        </div>
+
+        <div class="campo">
+          <label>Dirigido al área</label>
+          <select name="area" [ngModel]="area()" (ngModelChange)="cambiarArea($event)">
+            <option value="">Seleccione un área...</option>
+            @for (o of opcionesArea(); track o.valor) {
+              <option [value]="o.valor">{{ o.etiqueta }}</option>
+            }
+          </select>
+        </div>
+        <div class="campo">
+          <label>Persona (opcional)</label>
+          <select name="personaId" [(ngModel)]="formulario.personaId" [disabled]="!area()">
+            <option value="">Cualquier persona del área</option>
+            @for (p of personasDelArea(); track p.id) {
+              <option [value]="p.id">{{ p.nombre }}</option>
+            }
+          </select>
+        </div>
+        <div class="campo completo">
+          <span class="ayuda">Es el destinatario principal. Al enviar el documento podrá elegir a todas las personas «Para» y «Con copia».</span>
+        </div>
+
+        @if (modo() === 'redactar') {
+          <div class="campo completo">
+            <label>Contenido del documento</label>
+            <textarea name="cuerpo" class="cuerpo" [(ngModel)]="formulario.cuerpo" rows="14" [maxlength]="limite"
+                      placeholder="Escriba el texto del documento. Deje una línea en blanco entre párrafos."></textarea>
+            <span class="ayuda contador" [class.excedido]="formulario.cuerpo.length > limite">
+              {{ formulario.cuerpo.length }} / {{ limite }} caracteres
+            </span>
+          </div>
+        } @else {
+          <div class="campo completo">
+            <label>Archivo del documento</label>
+            <input type="file" name="archivo" [accept]="formatos" (change)="alSeleccionarArchivo($event)">
+            <span class="ayuda">PDF, Word (.docx) o Excel (.xlsx), hasta 20 MB. Los anexos se agregan después, desde el detalle.</span>
+          </div>
+        }
+
+        <div class="campo completo">
+          <label>Observación (opcional)</label>
+          <textarea name="observacion" [(ngModel)]="formulario.observacion" rows="2"></textarea>
+        </div>
+
+        <div class="campo completo">
+          <label class="casilla">
+            <input type="checkbox" name="confidencial" [(ngModel)]="formulario.confidencial">
+            🔒 Documento confidencial
+          </label>
+          <span class="ayuda">Solo lo verán las personas que intervienen en el trámite; ni siquiera Gerencia ni los administradores.</span>
+        </div>
+      </div>
+
+      @if (error()) {
+        <div class="modal-error">{{ error() }}</div>
+      }
+
+      <div class="pie">
+        <a class="btn-secundario enlace-boton" routerLink="/dashboard/bandejas/elaboracion">Cancelar</a>
+        <button class="btn-primario" type="submit" [disabled]="guardando()">
+          @if (guardando()) {
+            Guardando...
+          } @else if (modo() === 'redactar') {
+            Generar documento
+          } @else {
+            Guardar y generar hash
+          }
+        </button>
+      </div>
+    </form>
+
+    <!-- Vista previa de la hoja -->
+    @if (modo() === 'redactar') {
+      <aside class="vista">
+        <div class="vista-titulo">Vista previa <span class="sub">· el PDF final se genera al guardar</span></div>
+        <div class="hoja">
+          <div class="hoja-cabecera">
+            <span class="hoja-logo">EP-ULEAM</span>
+            <span class="hoja-tipo">
+              <strong>{{ tipo().toUpperCase() }}</strong>
+              <small>Nro. {{ numeroVista() }}</small>
+            </span>
+          </div>
+
+          <div class="hoja-fecha">Manta, {{ fechaLarga(formulario.fechaOficio) }}</div>
+
+          <div class="hoja-fila"><b>PARA:</b><span>{{ destinatarioVista() }}</span></div>
+          <div class="hoja-fila"><b>DE:</b><span>{{ yo?.nombreCompleto }} · {{ yo?.departamento }}</span></div>
+          <div class="hoja-fila"><b>ASUNTO:</b><span>{{ formulario.asunto || '—' }}</span></div>
+          @if (referencia(); as r) {
+            <div class="hoja-fila"><b>REF.:</b><span>{{ r.codigoTramite }}</span></div>
+          }
+
+          <div class="hoja-cuerpo">
+            @for (p of parrafos(); track $index) {
+              <p>{{ p }}</p>
+            } @empty {
+              <p class="marcador">El contenido aparecerá aquí a medida que lo escriba...</p>
+            }
+          </div>
+
+          <div class="hoja-firma">
+            <span>Atentamente,</span>
+            <strong>{{ yo?.nombreCompleto }}</strong>
+            <small>{{ yo?.departamento }}</small>
+          </div>
+        </div>
+      </aside>
+    }
+  </div>
 </div>

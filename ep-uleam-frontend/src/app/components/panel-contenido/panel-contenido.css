@@ -1,0 +1,11 @@
+.cabecera { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
+.cabecera h3 { margin: 0; }
+.nota { margin: 0 0 14px; font-size: 12px; color: var(--ep-texto-suave); }
+
+.contenido { padding: 16px 20px; background: #fafcff; border: 1px solid var(--ep-borde); border-left: 5px solid var(--ep-azul-claro); border-radius: 8px; }
+.contenido p { margin: 0 0 12px; font-size: 14px; line-height: 1.65; white-space: pre-wrap; text-align: justify; }
+.contenido p:last-child { margin-bottom: 0; }
+
+.area-texto { min-height: 260px; line-height: 1.55; }
+.contador { text-align: right; }
+.contador.excedido { color: var(--ep-rojo); font-weight: 700; }

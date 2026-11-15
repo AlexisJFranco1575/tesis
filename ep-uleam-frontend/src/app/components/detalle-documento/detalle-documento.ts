@@ -15,6 +15,7 @@ import {
   EntradaBitacora,
   EstadoDocumento,
   FORMATOS_ANEXO,
+  FORMATOS_DOCUMENTO,
   MAX_ANEXOS_POR_CARGA,
   ResultadoVerificacion,
   TAMANO_MAXIMO_BYTES,
@@ -27,6 +28,7 @@ import {
   etiquetaAccion,
   mensajeDeError,
 } from '../../services/documento';
+import { PanelContenidoComponent } from '../panel-contenido/panel-contenido';
 import { PanelTramiteComponent } from '../panel-tramite/panel-tramite';
 
 const DESCRIPCION_TRANSICION: Record<string, string> = {
@@ -44,7 +46,7 @@ const EXTENSIONES_VISIBLES = ['.pdf', '.png', '.jpg', '.jpeg'];
 @Component({
   selector: 'app-detalle-documento',
   standalone: true,
-  imports: [FormsModule, DatePipe, RouterLink, PanelTramiteComponent],
+  imports: [FormsModule, DatePipe, RouterLink, PanelTramiteComponent, PanelContenidoComponent],
   styleUrls: ['./detalle-documento.css', './detalle-flujo.css', './detalle-anexos.css', './detalle-tramite.css'],
   templateUrl: './detalle-documento.html',
 })
@@ -71,6 +73,7 @@ export class DetalleDocumentoComponent implements OnInit {
   readonly tipos = TIPOS_DOCUMENTO;
   readonly tiposAnexo = TIPOS_ANEXO;
   readonly formatosAnexo = FORMATOS_ANEXO;
+  readonly formatosDocumento = FORMATOS_DOCUMENTO;
   readonly maxAnexos = MAX_ANEXOS_POR_CARGA;
   readonly claseEstado = claseEstado;
   readonly etiqueta = etiquetaAccion;
@@ -192,12 +195,17 @@ export class DetalleDocumentoComponent implements OnInit {
     });
   }
 
-  // El panel de trámite avisa cuando algo cambió (envío, reasignación, archivo...)
+  // Los paneles hijos (trámite y contenido) avisan cuando algo cambió
   alCambiarTramite(): void {
     this.cargar(false);
   }
 
   // ---------- Ver y descargar versiones ----------
+
+  // Solo los PDF se abren en el navegador; Word y Excel se descargan
+  puedeVerVersion(version: Version): boolean {
+    return version.nombreOriginal.toLowerCase().endsWith('.pdf');
+  }
 
   verVersion(version: Version): void {
     // La ventana se abre al instante (dentro del clic) para que el navegador no la bloquee
@@ -424,7 +432,7 @@ export class DetalleDocumentoComponent implements OnInit {
     });
   }
 
-  // ---------- Nueva versión ----------
+  // ---------- Nueva versión (con un archivo PDF, Word o Excel) ----------
 
   abrirModalVersion(): void {
     this.comentario = '';
@@ -446,7 +454,11 @@ export class DetalleDocumentoComponent implements OnInit {
     this.errorVersion.set('');
 
     if (!this.archivo) {
-      this.errorVersion.set('Debe adjuntar el archivo PDF de la nueva versión.');
+      this.errorVersion.set('Debe adjuntar el archivo de la nueva versión (PDF, Word o Excel).');
+      return;
+    }
+    if (this.archivo.size > TAMANO_MAXIMO_BYTES) {
+      this.errorVersion.set('El archivo supera los 20 MB permitidos.');
       return;
     }
     if (!this.comentario.trim()) {
