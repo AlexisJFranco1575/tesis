@@ -47,7 +47,8 @@ const ACCIONES = [
     'ROL_ELIMINADO',
     'AREA_CREADA',
     'AREA_MODIFICADA',
-    'AREA_ELIMINADA'
+    'AREA_ELIMINADA',
+    'REPORTE_EXPORTADO'
 ];
 
 const bitacoraSchema = new mongoose.Schema({

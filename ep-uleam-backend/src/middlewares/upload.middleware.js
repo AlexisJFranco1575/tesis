@@ -1,7 +1,8 @@
-// src/middlewares/upload.middleware.js
+// Carga del archivo principal de un documento o de una nueva versión: PDF, Word (.docx) o Excel (.xlsx).
 const multer = require('multer');
 const crypto = require('crypto');
 const fs = require('fs');
+const { FORMATOS_DOCUMENTO } = require('../config/clasificacion');
 
 const TAMANO_MAXIMO = 20 * 1024 * 1024; // 20 MB
 
@@ -14,7 +15,7 @@ const storage = multer.diskStorage({
     },
     filename: (req, file, cb) => {
         // Nombre generado por el servidor: evita caracteres raros y colisiones
-        cb(null, `${Date.now()}-${crypto.randomBytes(6).toString('hex')}.pdf`);
+        cb(null, `${Date.now()}-${crypto.randomBytes(6).toString('hex')}${FORMATOS_DOCUMENTO[file.mimetype]}`);
     }
 });
 
@@ -25,8 +26,8 @@ const corregirCodificacion = (nombre) => {
 };
 
 const fileFilter = (req, file, cb) => {
-    if (file.mimetype !== 'application/pdf') {
-        return cb(new Error('Formato no válido. Solo se permiten archivos PDF.'));
+    if (!FORMATOS_DOCUMENTO[file.mimetype]) {
+        return cb(new Error('Formato no válido. Se permiten archivos PDF, Word (.docx) y Excel (.xlsx).'));
     }
     file.originalname = corregirCodificacion(file.originalname);
     cb(null, true);

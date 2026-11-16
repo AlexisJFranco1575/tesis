@@ -1,4 +1,4 @@
-// Categorías documentales y reglas de aprobación (RF-08, CU-10).
+// Categorías documentales, reglas de aprobación y formatos permitidos (RF-08, CU-10).
 
 const TIPOS_DOCUMENTO = ['Oficio', 'Memorando', 'Circular', 'Nota', 'Resolución', 'Informe Técnico', 'Contrato'];
 
@@ -14,4 +14,34 @@ const TIPOS_CON_APROBACION = ['Oficio', 'Resolución', 'Contrato'];
 
 const requiereAprobacion = (tipo) => TIPOS_CON_APROBACION.includes(tipo);
 
-module.exports = { TIPOS_DOCUMENTO, TIPOS_ANEXO, PRIORIDADES, TIPOS_CON_APROBACION, requiereAprobacion };
+// Siglas del tipo, para el número automático (ej. SG-2026-0001-MEM)
+const SIGLAS_TIPO = {
+    'Oficio': 'OFI',
+    'Memorando': 'MEM',
+    'Circular': 'CIR',
+    'Nota': 'NOT',
+    'Resolución': 'RES',
+    'Informe Técnico': 'INF',
+    'Contrato': 'CON'
+};
+
+// Formatos permitidos para el archivo principal de un documento: tipo MIME → extensión
+const FORMATOS_DOCUMENTO = {
+    'application/pdf': '.pdf',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document': '.docx',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': '.xlsx'
+};
+
+// Máximo de caracteres del contenido de un documento redactado en el sistema
+const LIMITE_CUERPO = 15000;
+
+module.exports = {
+    TIPOS_DOCUMENTO,
+    TIPOS_ANEXO,
+    PRIORIDADES,
+    TIPOS_CON_APROBACION,
+    requiereAprobacion,
+    SIGLAS_TIPO,
+    FORMATOS_DOCUMENTO,
+    LIMITE_CUERPO
+};

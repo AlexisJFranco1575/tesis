@@ -1,5 +1,6 @@
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 const mongoose = require('mongoose');
 const Documento = require('../models/Documento');
 const Version = require('../models/Version');
@@ -11,10 +12,18 @@ const { hashArchivo } = require('../utils/hash.service');
 const { esParticipante, transicionesPara } = require('../utils/acceso');
 const { idValido, cargarDocumentoAccesible } = require('../utils/documentoAcceso');
 const { ESTADOS, TRANSICIONES, ESTADOS_EDITABLES } = require('../config/flujo');
-const { TIPOS_ANEXO, PRIORIDADES, requiereAprobacion } = require('../config/clasificacion');
+const {
+    TIPOS_DOCUMENTO,
+    TIPOS_ANEXO,
+    PRIORIDADES,
+    LIMITE_CUERPO,
+    requiereAprobacion
+} = require('../config/clasificacion');
 const { registrarAccion } = require('../services/bitacora.service');
 const { notificarFlujo } = require('../services/notificacion.service');
 const { resolverArea } = require('../services/catalogo.service');
+const { generarNumeroDocumento } = require('../services/numeracion.service');
+const { generarPdfDocumento } = require('../services/pdf.service');
 const tramiteServicio = require('../services/tramite.service');
 const {
     verificarVersiones,
@@ -44,12 +53,9 @@ const leerCabecera = async (ruta, bytes = 8) => {
     }
 };
 
-// Un PDF real comienza con los 5 caracteres "%PDF-"
-const esPdfReal = async (ruta) => (await leerCabecera(ruta, 5)).toString('latin1') === '%PDF-';
-
-// Firmas de los formatos permitidos para anexos (se comprueba el contenido, no solo la extensión)
+// Firmas de los formatos permitidos (se comprueba el contenido, no solo la extensión)
 const ZIP = Buffer.from([0x50, 0x4b, 0x03, 0x04]); // DOCX y XLSX son archivos ZIP
-const FIRMAS_ANEXO = {
+const FIRMAS = {
     'application/pdf': Buffer.from('%PDF-', 'latin1'),
     'image/png': Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
     'image/jpeg': Buffer.from([0xff, 0xd8, 0xff]),
@@ -57,14 +63,19 @@ const FIRMAS_ANEXO = {
     'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ZIP
 };
 
-const firmaAnexoValida = async (ruta, mimetype) => {
-    const firma = FIRMAS_ANEXO[mimetype];
+const firmaValida = async (ruta, mimetype) => {
+    const firma = FIRMAS[mimetype];
     if (!firma) {
         return false;
     }
     const cabecera = await leerCabecera(ruta, firma.length);
     return cabecera.length === firma.length && cabecera.equals(firma);
 };
+
+const mensajeFirmaInvalida = (mimetype) =>
+    mimetype === 'application/pdf'
+        ? 'El archivo no es un PDF válido.'
+        : 'El archivo no corresponde al formato indicado (Word o Excel).';
 
 const leerObjeto = (valor) => {
     if (typeof valor === 'string') {
@@ -98,9 +109,24 @@ const parsearPlazo = (valor) => {
 
 const soloFecha = (fecha) => (fecha ? new Date(fecha).toISOString().slice(0, 10) : '');
 
+// Fecha de hoy en Ecuador (UTC-5), formato AAAA-MM-DD
+const hoyEcuador = () => new Date(Date.now() - 5 * 3600 * 1000).toISOString().slice(0, 10);
+
 const esVerdadero = (valor) => valor === true || valor === 'true';
 
 const quienHizo = (usuario) => ({ id: String(usuario.id), nombre: usuario.nombreCompleto });
+
+const limpiarCuerpo = (valor) => String(valor || '').replace(/\r\n/g, '\n').replace(/\u0000/g, '').trim();
+
+const errorDeCuerpo = (cuerpo) => {
+    if (cuerpo.length < 10) {
+        return 'Escriba el contenido del documento (mínimo 10 caracteres).';
+    }
+    if (cuerpo.length > LIMITE_CUERPO) {
+        return `El contenido supera el máximo de ${LIMITE_CUERPO} caracteres.`;
+    }
+    return null;
+};
 
 // Identificador único consecutivo por año, ej: EP-ULEAM-2026-0001 (CU-08 paso 7)
 const generarCodigoTramite = async () => {
@@ -112,6 +138,15 @@ const generarCodigoTramite = async () => {
     );
     return `EP-ULEAM-${anio}-${String(contador.valor).padStart(4, '0')}`;
 };
+
+// Ruta nueva para un PDF generado por el sistema
+const generarRutaPdf = () => {
+    const carpeta = process.env.UPLOADS_DIR || './uploads';
+    fs.mkdirSync(carpeta, { recursive: true });
+    return path.join(carpeta, `${Date.now()}-${crypto.randomBytes(6).toString('hex')}.pdf`);
+};
+
+const nombreArchivoPdf = (numero) => `${String(numero).replace(/[^A-Za-z0-9_-]/g, '_')}.pdf`;
 
 // Destinatario principal: una persona del directorio, o un área del catálogo
 const resolverDestinatario = async (entrada) => {
@@ -158,6 +193,7 @@ const accionesPara = (documento, usuario) => {
         modificar: editable && usuario.permisos.includes('documentos.modificar'),
         versionar: editable && usuario.permisos.includes('documentos.versionar'),
         anexar: editable && usuario.permisos.includes('documentos.anexar'),
+        editarContenido: editable && documento.origen === 'redactado' && usuario.permisos.includes('documentos.versionar'),
         enviar: !documento.bloqueado && motivoNoEnviable(documento) === null && usuario.permisos.includes('documentos.enviar')
     };
 };
@@ -182,7 +218,220 @@ const presentarAnexo = (a) => ({
     createdAt: a.createdAt
 });
 
-// ---------- CU-08: Registrar documento (incluye CU-09, CU-10 y CU-19) ----------
+const buscarReferencia = async (id) => {
+    if (!id) {
+        return null;
+    }
+    const original = await Documento.findById(id).select('codigoTramite asunto').lean();
+    return original ? { codigoTramite: original.codigoTramite, asunto: original.asunto } : null;
+};
+
+// ---------- Validación común del registro (documento cargado o redactado) ----------
+// Devuelve { datos, numeroManual } o null si ya respondió con el error.
+
+const prepararDatos = async (req, res) => {
+    const b = req.body || {};
+    const tipoDocumento = b.tipoDocumento;
+    const asunto = String(b.asunto || '').trim();
+    const motivo = String(b.motivo || '').trim();
+    const observacion = String(b.observacion || '').trim();
+    const prioridad = b.prioridad || 'Normal';
+    const confidencial = esVerdadero(b.confidencial);
+    const entradaDestinatario = leerObjeto(b.destinatario);
+    const numeroManual = String(b.numeroOficio || '').trim().toUpperCase();
+
+    // A1: datos obligatorios (la fecha, si no se indica, es la de hoy)
+    if (!tipoDocumento || !asunto || !motivo || !entradaDestinatario) {
+        res.status(400).json({ mensaje: 'Faltan datos obligatorios: tipo, asunto, motivo y destinatario.' });
+        return null;
+    }
+    if (b.fechaOficio && !parsearFecha(b.fechaOficio)) {
+        res.status(400).json({ mensaje: 'La fecha del documento no es válida.' });
+        return null;
+    }
+    if (!TIPOS_DOCUMENTO.includes(tipoDocumento)) {
+        res.status(400).json({ mensaje: 'El tipo de documento no es válido.' });
+        return null;
+    }
+    if (!PRIORIDADES.includes(prioridad)) {
+        res.status(400).json({ mensaje: 'La prioridad indicada no es válida.' });
+        return null;
+    }
+
+    const destinatario = await resolverDestinatario(entradaDestinatario);
+    if (destinatario.error) {
+        res.status(400).json({ mensaje: destinatario.error });
+        return null;
+    }
+
+    // Documento al que este responde (opcional): el usuario debe tener acceso a él
+    let referencia = null;
+    if (b.referencia) {
+        const original = idValido(b.referencia) ? await Documento.findById(b.referencia) : null;
+        if (!original || !esParticipante(req.usuario, original)) {
+            res.status(400).json({ mensaje: 'El documento de referencia no existe o no tiene acceso a él.' });
+            return null;
+        }
+        referencia = original._id;
+    }
+
+    // A2: un número escrito a mano no puede repetirse
+    if (numeroManual && (await Documento.exists({ numeroOficio: numeroManual }))) {
+        res.status(409).json({ mensaje: 'Ya existe un documento registrado con ese número.' });
+        return null;
+    }
+
+    return {
+        numeroManual,
+        datos: {
+            fechaOficio: parsearFecha(b.fechaOficio || hoyEcuador()),
+            tipoDocumento,
+            asunto,
+            motivo,
+            observacion,
+            prioridad,
+            confidencial,
+            fechaLimite: parsearPlazo(b.fechaLimite),
+            referencia,
+            destinatario: destinatario.valor
+        }
+    };
+};
+
+// Número escrito a mano, o generado automáticamente por área, tipo y año
+const asignarNumero = async (req, preparado) => {
+    const { datos, numeroManual } = preparado;
+    datos.numeroOficio =
+        numeroManual ||
+        (await generarNumeroDocumento({
+            tipoDocumento: datos.tipoDocumento,
+            areaNombre: req.usuario.departamento,
+            fecha: datos.fechaOficio
+        }));
+};
+
+// Crea el documento, su versión 1, el primer movimiento del recorrido y la bitácora.
+// Si algo falla a medias, deshace el registro para no dejar datos huérfanos.
+const guardarDocumento = async (req, datos, archivo, codigoTramite) => {
+    const hash = await hashArchivo(archivo.path);
+    const creadoPor = quienHizo(req.usuario);
+    let documento;
+
+    try {
+        documento = await Documento.create({
+            codigoTramite: codigoTramite || (await generarCodigoTramite()),
+            ...datos,
+            remitente: { nombre: req.usuario.nombreCompleto, departamento: req.usuario.departamento },
+            involucrados: [req.usuario.id],
+            versionActual: 1,
+            hashActual: hash,
+            creadoPor
+        });
+
+        await Version.create({
+            documento: documento._id,
+            numero: 1,
+            nombreOriginal: archivo.originalname,
+            rutaArchivo: archivo.path,
+            tamanoBytes: archivo.size,
+            hashArchivo: hash,
+            comentario: 'Versión inicial',
+            creadoPor
+        });
+
+        await Movimiento.create({
+            documento: documento._id,
+            tipo: 'ELABORACION',
+            de: tramiteServicio.personaDeSesion(req.usuario),
+            comentario: documento.origen === 'redactado' ? 'Documento redactado en el sistema' : 'Documento elaborado'
+        });
+
+        await registrarAccion({
+            accion: 'REGISTRO_DOCUMENTO',
+            documento: documento._id,
+            codigoTramite: documento.codigoTramite,
+            usuario: req.usuario,
+            detalle: `${documento.tipoDocumento} ${documento.numeroOficio} · ${documento.origen === 'redactado' ? 'redactado en el sistema' : 'archivo cargado'} · Versión 1 · SHA-256 ${hash}`
+        });
+    } catch (error) {
+        if (documento) {
+            await Documento.deleteOne({ _id: documento._id });
+            await Version.collection.deleteMany({ documento: documento._id });
+            await Movimiento.deleteMany({ documento: documento._id });
+        }
+        throw error;
+    }
+
+    return documento;
+};
+
+const responderErrorRegistro = (error, res, contexto) => {
+    if (error.code === 11000) {
+        const campo = error.keyPattern?.numeroOficio ? 'ese número' : 'ese código';
+        return res.status(409).json({ mensaje: `Ya existe un documento con ${campo}.` });
+    }
+    if (error.name === 'ValidationError') {
+        return res.status(400).json({ mensaje: error.message });
+    }
+    console.error(`Error al ${contexto}:`, error);
+    return res.status(500).json({ mensaje: 'Error interno del servidor al procesar el documento.' });
+};
+
+// Genera una nueva versión del PDF de un documento redactado con sus datos y contenido actuales,
+// la guarda con su hash y actualiza el documento. Devuelve el número de versión.
+const generarNuevaVersionPdf = async (documento, usuario, comentario) => {
+    const numero = documento.versionActual + 1;
+    const ruta = generarRutaPdf();
+
+    try {
+        await generarPdfDocumento(ruta, {
+            tipoDocumento: documento.tipoDocumento,
+            numero: documento.numeroOficio,
+            codigoTramite: documento.codigoTramite,
+            fecha: documento.fechaOficio || documento.createdAt,
+            remitente: { nombre: documento.remitente.nombre, departamento: documento.remitente.departamento },
+            destinatario: { nombre: documento.destinatario.nombre, departamento: documento.destinatario.departamento },
+            asunto: documento.asunto,
+            cuerpo: documento.cuerpo,
+            referencia: await buscarReferencia(documento.referencia),
+            prioridad: documento.prioridad,
+            confidencial: documento.confidencial
+        });
+
+        const hash = await hashArchivo(ruta);
+        const { size } = await fs.promises.stat(ruta);
+
+        await Version.create({
+            documento: documento._id,
+            numero,
+            nombreOriginal: nombreArchivoPdf(documento.numeroOficio || documento.codigoTramite),
+            rutaArchivo: ruta,
+            tamanoBytes: size,
+            hashArchivo: hash,
+            comentario,
+            creadoPor: quienHizo(usuario)
+        });
+
+        documento.versionActual = numero;
+        documento.hashActual = hash;
+        await documento.save();
+
+        await registrarAccion({
+            accion: 'NUEVA_VERSION',
+            documento: documento._id,
+            codigoTramite: documento.codigoTramite,
+            usuario,
+            detalle: `Versión ${numero} · SHA-256 ${hash} · ${comentario}`
+        });
+    } catch (error) {
+        borrarArchivo(ruta);
+        throw error;
+    }
+
+    return numero;
+};
+
+// ---------- CU-08: Registrar documento con un archivo ya elaborado (incluye CU-09, CU-10 y CU-19) ----------
 // El remitente es siempre el usuario con sesión iniciada y su área.
 
 const crearDocumento = async (req, res) => {
@@ -190,120 +439,25 @@ const crearDocumento = async (req, res) => {
 
     try {
         if (!archivo) {
-            return res.status(400).json({ mensaje: 'Debe adjuntar el archivo PDF del documento.' });
+            return res.status(400).json({ mensaje: 'Debe adjuntar el archivo del documento (PDF, Word o Excel).' });
         }
 
-        const tipoDocumento = req.body.tipoDocumento;
-        const numeroOficio = String(req.body.numeroOficio || '').trim().toUpperCase();
-        const asunto = String(req.body.asunto || '').trim();
-        const motivo = String(req.body.motivo || '').trim();
-        const observacion = String(req.body.observacion || '').trim();
-        const fechaOficio = parsearFecha(req.body.fechaOficio);
-        const prioridad = req.body.prioridad || 'Normal';
-        const confidencial = esVerdadero(req.body.confidencial);
-        const fechaLimite = parsearPlazo(req.body.fechaLimite);
-        const entradaDestinatario = leerObjeto(req.body.destinatario);
-
-        // A1: datos obligatorios
-        if (!numeroOficio || !fechaOficio || !tipoDocumento || !asunto || !motivo || !entradaDestinatario) {
+        const preparado = await prepararDatos(req, res);
+        if (!preparado) {
             borrarArchivo(archivo.path);
-            return res.status(400).json({
-                mensaje: 'Faltan datos obligatorios: número de oficio, fecha, tipo, asunto, motivo y destinatario.'
-            });
+            return;
         }
-        if (!PRIORIDADES.includes(prioridad)) {
+
+        // A3: el contenido real del archivo debe corresponder a su formato
+        if (!(await firmaValida(archivo.path, archivo.mimetype))) {
             borrarArchivo(archivo.path);
-            return res.status(400).json({ mensaje: 'La prioridad indicada no es válida.' });
+            return res.status(400).json({ mensaje: mensajeFirmaInvalida(archivo.mimetype) });
         }
 
-        const destinatario = await resolverDestinatario(entradaDestinatario);
-        if (destinatario.error) {
-            borrarArchivo(archivo.path);
-            return res.status(400).json({ mensaje: destinatario.error });
-        }
+        await asignarNumero(req, preparado);
+        preparado.datos.origen = 'cargado';
 
-        // Documento al que este responde (opcional): el usuario debe tener acceso a él
-        let referencia = null;
-        if (req.body.referencia) {
-            const original = idValido(req.body.referencia) ? await Documento.findById(req.body.referencia) : null;
-            if (!original || !esParticipante(req.usuario, original)) {
-                borrarArchivo(archivo.path);
-                return res.status(400).json({ mensaje: 'El documento de referencia no existe o no tiene acceso a él.' });
-            }
-            referencia = original._id;
-        }
-
-        // A2: el número de oficio no puede repetirse
-        if (await Documento.exists({ numeroOficio })) {
-            borrarArchivo(archivo.path);
-            return res.status(409).json({ mensaje: 'Ya existe un documento registrado con ese número de oficio.' });
-        }
-
-        // A3: el archivo debe ser un PDF válido
-        if (!(await esPdfReal(archivo.path))) {
-            borrarArchivo(archivo.path);
-            return res.status(400).json({ mensaje: 'El archivo no es un PDF válido.' });
-        }
-
-        const hash = await hashArchivo(archivo.path);
-        const creadoPor = quienHizo(req.usuario);
-        let documento;
-
-        try {
-            documento = await Documento.create({
-                codigoTramite: await generarCodigoTramite(),
-                numeroOficio,
-                fechaOficio,
-                motivo,
-                observacion,
-                tipoDocumento,
-                asunto,
-                remitente: { nombre: req.usuario.nombreCompleto, departamento: req.usuario.departamento },
-                destinatario: destinatario.valor,
-                prioridad,
-                confidencial,
-                fechaLimite,
-                referencia,
-                involucrados: [req.usuario.id],
-                versionActual: 1,
-                hashActual: hash,
-                creadoPor
-            });
-
-            await Version.create({
-                documento: documento._id,
-                numero: 1,
-                nombreOriginal: archivo.originalname,
-                rutaArchivo: archivo.path,
-                tamanoBytes: archivo.size,
-                hashArchivo: hash,
-                comentario: 'Versión inicial',
-                creadoPor
-            });
-
-            await Movimiento.create({
-                documento: documento._id,
-                tipo: 'ELABORACION',
-                de: tramiteServicio.personaDeSesion(req.usuario),
-                comentario: 'Documento elaborado'
-            });
-
-            await registrarAccion({
-                accion: 'REGISTRO_DOCUMENTO',
-                documento: documento._id,
-                codigoTramite: documento.codigoTramite,
-                usuario: req.usuario,
-                detalle: `Oficio ${numeroOficio} · Versión 1 · SHA-256 ${hash}`
-            });
-        } catch (error) {
-            // Si algo falla a medias, se deshace el registro para no dejar datos huérfanos
-            if (documento) {
-                await Documento.deleteOne({ _id: documento._id });
-                await Version.collection.deleteMany({ documento: documento._id });
-                await Movimiento.deleteMany({ documento: documento._id });
-            }
-            throw error;
-        }
+        const documento = await guardarDocumento(req, preparado.datos, archivo);
 
         res.status(201).json({
             mensaje: `Documento registrado con el código ${documento.codigoTramite} y su hash SHA-256.`,
@@ -312,16 +466,115 @@ const crearDocumento = async (req, res) => {
 
     } catch (error) {
         borrarArchivo(archivo?.path);
+        responderErrorRegistro(error, res, 'crear documento');
+    }
+};
 
+// ---------- Redactar un documento en el sistema ----------
+// El usuario escribe el contenido y el sistema genera el PDF con el formato institucional.
+
+const redactarDocumento = async (req, res) => {
+    let ruta = null;
+
+    try {
+        const preparado = await prepararDatos(req, res);
+        if (!preparado) {
+            return;
+        }
+
+        const cuerpo = limpiarCuerpo(req.body?.cuerpo);
+        const errorCuerpo = errorDeCuerpo(cuerpo);
+        if (errorCuerpo) {
+            return res.status(400).json({ mensaje: errorCuerpo });
+        }
+
+        await asignarNumero(req, preparado);
+        const { datos } = preparado;
+        datos.cuerpo = cuerpo;
+        datos.origen = 'redactado';
+
+        const codigoTramite = await generarCodigoTramite();
+        ruta = generarRutaPdf();
+
+        await generarPdfDocumento(ruta, {
+            tipoDocumento: datos.tipoDocumento,
+            numero: datos.numeroOficio,
+            codigoTramite,
+            fecha: datos.fechaOficio,
+            remitente: { nombre: req.usuario.nombreCompleto, departamento: req.usuario.departamento },
+            destinatario: { nombre: datos.destinatario.nombre, departamento: datos.destinatario.departamento },
+            asunto: datos.asunto,
+            cuerpo,
+            referencia: await buscarReferencia(datos.referencia),
+            prioridad: datos.prioridad,
+            confidencial: datos.confidencial
+        });
+
+        const { size } = await fs.promises.stat(ruta);
+        const documento = await guardarDocumento(
+            req,
+            datos,
+            { path: ruta, originalname: nombreArchivoPdf(datos.numeroOficio), size },
+            codigoTramite
+        );
+
+        res.status(201).json({
+            mensaje: `Documento ${documento.numeroOficio} generado con el código ${documento.codigoTramite} y su hash SHA-256.`,
+            documento
+        });
+
+    } catch (error) {
+        borrarArchivo(ruta);
+        responderErrorRegistro(error, res, 'redactar el documento');
+    }
+};
+
+// ---------- Editar el contenido de un documento redactado ----------
+// Genera una nueva versión del PDF; la anterior se conserva.
+
+const editarContenido = async (req, res) => {
+    try {
+        const documento = await cargarDocumentoAccesible(req, res);
+        if (!documento) return;
+
+        if (documento.bloqueado) {
+            return res.status(423).json({ mensaje: 'El documento está bloqueado por una alerta de alteración.' });
+        }
+        if (!ESTADOS_EDITABLES.includes(documento.estado)) {
+            return res.status(409).json({
+                mensaje: `Un documento en estado "${documento.estado}" no puede modificarse. Debe estar en Generado o Rechazado.`
+            });
+        }
+        if (documento.origen !== 'redactado') {
+            return res.status(409).json({
+                mensaje: 'Este documento se cargó como archivo. Para cambiar su contenido cree una nueva versión con el archivo corregido.'
+            });
+        }
+
+        const cuerpo = limpiarCuerpo(req.body?.cuerpo);
+        const errorCuerpo = errorDeCuerpo(cuerpo);
+        if (errorCuerpo) {
+            return res.status(400).json({ mensaje: errorCuerpo });
+        }
+        if (cuerpo === documento.cuerpo) {
+            return res.status(400).json({ mensaje: 'No hay cambios en el contenido.' });
+        }
+
+        const comentario = String(req.body?.comentario || '').trim() || 'Contenido editado';
+        documento.cuerpo = cuerpo;
+        const numero = await generarNuevaVersionPdf(documento, req.usuario, comentario);
+
+        res.json({
+            mensaje: `Contenido actualizado. Se generó la versión ${numero} con su hash SHA-256.`,
+            documento: presentar(documento, req.usuario)
+        });
+
+    } catch (error) {
         if (error.code === 11000) {
-            const campo = error.keyPattern?.numeroOficio ? 'ese número de oficio' : 'ese código';
-            return res.status(409).json({ mensaje: `Ya existe un documento con ${campo}.` });
+            return res.status(409).json({ mensaje: 'Se registró otra versión al mismo tiempo. Intente nuevamente.' });
         }
-        if (error.name === 'ValidationError') {
-            return res.status(400).json({ mensaje: error.message });
-        }
-        console.error('Error al crear documento:', error);
-        res.status(500).json({ mensaje: 'Error interno del servidor al procesar el documento.' });
+        console.error('Error al editar el contenido:', error);
+        res.status(500).json({ mensaje: 'Error interno del servidor.' });
     }
 };
 
@@ -330,7 +583,7 @@ const crearDocumento = async (req, res) => {
 // Cada usuario ve únicamente los documentos en los que participa
 const obtenerDocumentos = async (req, res) => {
     try {
-        const documentos = await Documento.find().sort({ createdAt: -1 });
+        const documentos = await Documento.find().select('-cuerpo').sort({ createdAt: -1 });
         res.status(200).json(documentos.filter((d) => esParticipante(req.usuario, d)));
     } catch (error) {
         console.error('Error al obtener los documentos:', error);
@@ -363,7 +616,8 @@ const obtenerDocumento = async (req, res) => {
 
 // ---------- CU-14: Modificar documento ----------
 // Se pueden modificar asunto, tipo, fecha, motivo, observación y destinatario.
-// El número de oficio y el código no cambian. Lo anterior queda en la bitácora.
+// El número y el código no cambian. Lo anterior queda en la bitácora.
+// Si el documento fue redactado en el sistema y cambian datos que aparecen en el PDF, se genera una nueva versión.
 
 const modificarDocumento = async (req, res) => {
     try {
@@ -380,6 +634,7 @@ const modificarDocumento = async (req, res) => {
         }
 
         const cambios = [];
+        let cambiaPdf = false;
         const { asunto, tipoDocumento, motivo, observacion, fechaOficio } = req.body || {};
         const entradaDestinatario = leerObjeto(req.body?.destinatario);
 
@@ -391,6 +646,7 @@ const modificarDocumento = async (req, res) => {
             if (nuevo !== documento.asunto) {
                 cambios.push(`asunto: "${documento.asunto}" → "${nuevo}"`);
                 documento.asunto = nuevo;
+                cambiaPdf = true;
             }
         }
 
@@ -421,12 +677,14 @@ const modificarDocumento = async (req, res) => {
             if (soloFecha(nueva) !== soloFecha(documento.fechaOficio)) {
                 cambios.push(`fecha del oficio: "${soloFecha(documento.fechaOficio)}" → "${soloFecha(nueva)}"`);
                 documento.fechaOficio = nueva;
+                cambiaPdf = true;
             }
         }
 
         if (tipoDocumento !== undefined && tipoDocumento !== documento.tipoDocumento) {
             cambios.push(`tipo: "${documento.tipoDocumento}" → "${tipoDocumento}"`);
             documento.tipoDocumento = tipoDocumento;
+            cambiaPdf = true;
         }
 
         if (entradaDestinatario) {
@@ -439,6 +697,7 @@ const modificarDocumento = async (req, res) => {
             if (nuevo.nombre !== actual.nombre || nuevo.departamento !== actual.departamento) {
                 cambios.push(`destinatario: "${actual.nombre} (${actual.departamento})" → "${nuevo.nombre} (${nuevo.departamento})"`);
                 documento.destinatario = nuevo;
+                cambiaPdf = true;
             }
         }
 
@@ -456,8 +715,16 @@ const modificarDocumento = async (req, res) => {
             detalle: cambios.join(' · ')
         });
 
+        // El PDF de un documento redactado debe reflejar los datos nuevos: se genera otra versión
+        let versionNueva = null;
+        if (cambiaPdf && documento.origen === 'redactado') {
+            versionNueva = await generarNuevaVersionPdf(documento, req.usuario, 'Actualización automática por cambio de datos');
+        }
+
         res.json({
-            mensaje: 'Documento actualizado. Los datos anteriores quedaron en la trazabilidad.',
+            mensaje: versionNueva
+                ? `Documento actualizado. Se generó la versión ${versionNueva} del PDF con los datos nuevos.`
+                : 'Documento actualizado. Los datos anteriores quedaron en la trazabilidad.',
             documento: presentar(documento, req.usuario)
         });
 
@@ -643,14 +910,14 @@ const listarVersiones = async (req, res) => {
     }
 };
 
-// ---------- CU-16: Crear nueva versión (incluye CU-19) ----------
+// ---------- CU-16: Crear nueva versión con un archivo (incluye CU-19) ----------
 
 const crearVersion = async (req, res) => {
     const archivo = req.file;
 
     try {
         if (!archivo) {
-            return res.status(400).json({ mensaje: 'Debe adjuntar el archivo PDF de la nueva versión.' });
+            return res.status(400).json({ mensaje: 'Debe adjuntar el archivo de la nueva versión (PDF, Word o Excel).' });
         }
 
         const documento = await cargarDocumentoAccesible(req, res);
@@ -669,9 +936,9 @@ const crearVersion = async (req, res) => {
                 mensaje: `Un documento en estado "${documento.estado}" no admite nuevas versiones. Debe estar en Generado o Rechazado.`
             });
         }
-        if (!(await esPdfReal(archivo.path))) {
+        if (!(await firmaValida(archivo.path, archivo.mimetype))) {
             borrarArchivo(archivo.path);
-            return res.status(400).json({ mensaje: 'El archivo no es un PDF válido.' });
+            return res.status(400).json({ mensaje: mensajeFirmaInvalida(archivo.mimetype) });
         }
 
         const hash = await hashArchivo(archivo.path);
@@ -691,6 +958,8 @@ const crearVersion = async (req, res) => {
 
         documento.versionActual = numero;
         documento.hashActual = hash;
+        // Si la versión vigente es un archivo subido, el documento deja de editarse desde el redactor
+        documento.origen = 'cargado';
         await documento.save();
 
         await registrarAccion({
@@ -822,7 +1091,7 @@ const subirAnexos = async (req, res) => {
 
         // A1: el contenido real de cada archivo debe corresponder a un formato permitido
         for (const archivo of archivos) {
-            if (!(await firmaAnexoValida(archivo.path, archivo.mimetype))) {
+            if (!(await firmaValida(archivo.path, archivo.mimetype))) {
                 borrarArchivos(archivos);
                 return res.status(400).json({
                     mensaje: `El archivo "${archivo.originalname}" no corresponde a un formato permitido (PDF, PNG, JPG, DOCX o XLSX).`
@@ -1017,6 +1286,8 @@ const desbloquearDocumento = async (req, res) => {
 
 module.exports = {
     crearDocumento,
+    redactarDocumento,
+    editarContenido,
     obtenerDocumentos,
     obtenerDocumento,
     modificarDocumento,

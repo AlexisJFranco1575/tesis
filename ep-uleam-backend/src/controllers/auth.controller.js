@@ -3,6 +3,7 @@ const jwt = require('jsonwebtoken');
 const Usuario = require('../models/Usuario');
 const { registrarAccion } = require('../services/bitacora.service');
 const { armarSesion } = require('../utils/sesion');
+const { resolverArea } = require('../services/catalogo.service');
 const { validarPassword } = require('../utils/password.util');
 const { bloqueadoHasta, bloqueoVigente, minutosDeBloqueo, textoTiempoRestante } = require('../utils/bloqueo');
 
@@ -255,7 +256,7 @@ const registrarAdminInicial = async (req, res) => {
             nombres: nombres.trim(),
             apellidos: apellidos.trim(),
             email: limpiarEmail(email),
-            departamento: departamento.trim(),
+            departamento: (await resolverArea(departamento))?.nombre || departamento.trim(),
             password,
             roles: ['Superadmin']
         });

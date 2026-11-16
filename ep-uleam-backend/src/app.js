@@ -13,6 +13,9 @@ const directorioRoutes = require('./routes/directorio.routes');
 const bitacoraRoutes = require('./routes/bitacora.routes');
 const notificacionesRoutes = require('./routes/notificaciones.routes');
 const pendientesRoutes = require('./routes/pendientes.routes');
+const estadisticasRoutes = require('./routes/estadisticas.routes');
+const reportesRoutes = require('./routes/reportes.routes');
+const publicoRoutes = require('./routes/publico.routes');
 const { limiteGeneral } = require('./middlewares/limites');
 const { asegurarCatalogos } = require('./services/catalogo.service');
 
@@ -61,6 +64,9 @@ app.use('/api/directorio', directorioRoutes);
 app.use('/api/bitacora', bitacoraRoutes);
 app.use('/api/notificaciones', notificacionesRoutes);
 app.use('/api/pendientes', pendientesRoutes);
+app.use('/api/estadisticas', estadisticasRoutes);
+app.use('/api/reportes', reportesRoutes);
+app.use('/api/publico', publicoRoutes); // sin sesión
 
 // Ruta inexistente
 app.use((req, res) => {

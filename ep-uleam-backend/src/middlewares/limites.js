@@ -1,7 +1,8 @@
-// src/middlewares/limites.js
 const { rateLimit } = require('express-rate-limit');
 
-const enPruebas = () => process.env.NODE_ENV === 'test';
+// Los límites se omiten en las pruebas automáticas y, solo en entornos de prueba,
+// cuando se define DESACTIVAR_LIMITES=1 (para medir el rendimiento sin que se active el límite)
+const omitir = () => process.env.NODE_ENV === 'test' || process.env.DESACTIVAR_LIMITES === '1';
 
 const crearLimite = ({ ventanaMinutos, maximo, mensaje }) =>
     rateLimit({
@@ -9,7 +10,7 @@ const crearLimite = ({ ventanaMinutos, maximo, mensaje }) =>
         limit: maximo,
         standardHeaders: true,
         legacyHeaders: false,
-        skip: enPruebas,
+        skip: omitir,
         message: { mensaje }
     });
 
@@ -39,4 +40,11 @@ const limiteRegistroInicial = crearLimite({
     mensaje: 'Demasiados intentos. Intente más tarde.'
 });
 
-module.exports = { limiteGeneral, limiteLogin, limiteRecuperacion, limiteRegistroInicial };
+// La verificación pública de autenticidad no requiere sesión: se limita por IP
+const limitePublico = crearLimite({
+    ventanaMinutos: 15,
+    maximo: 60,
+    mensaje: 'Demasiadas consultas de verificación desde esta dirección. Intente más tarde.'
+});
+
+module.exports = { limiteGeneral, limiteLogin, limiteRecuperacion, limiteRegistroInicial, limitePublico };

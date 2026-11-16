@@ -19,7 +19,8 @@ const documentoSchema = new mongoose.Schema({
     // Identificador único generado por el sistema, ej: EP-ULEAM-2026-0001 (CU-08 paso 7)
     codigoTramite: { type: String, required: true, unique: true, trim: true },
 
-    // Datos del oficio (CU-08 paso 3). "sparse" permite documentos antiguos que no los tienen.
+    // Número del documento (se genera automáticamente por área, tipo y año; también puede escribirse a mano).
+    // "sparse" permite documentos antiguos que no lo tienen.
     numeroOficio: { type: String, trim: true, uppercase: true, unique: true, sparse: true },
     fechaOficio: { type: Date },
     motivo: { type: String, default: '', trim: true },
@@ -38,6 +39,11 @@ const documentoSchema = new mongoose.Schema({
         usuario: { type: String, default: '' }
     },
     estado: { type: String, enum: ESTADOS, default: 'Generado' },
+
+    // Contenido: 'redactado' = escrito en el sistema (el PDF se genera con el formato institucional);
+    // 'cargado' = el archivo se subió ya elaborado (PDF, Word o Excel)
+    origen: { type: String, enum: ['redactado', 'cargado'], default: 'cargado' },
+    cuerpo: { type: String, default: '' },
 
     // Trámite
     prioridad: { type: String, enum: PRIORIDADES, default: 'Normal' },
