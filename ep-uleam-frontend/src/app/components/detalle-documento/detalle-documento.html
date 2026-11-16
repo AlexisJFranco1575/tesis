@@ -228,6 +228,9 @@
     <!-- Contenido (solo documentos redactados en el sistema) -->
     <app-panel-contenido [documento]="doc" (cambio)="alCambiarTramite()" />
 
+    <!-- Enlace público de verificación de autenticidad -->
+    <app-enlace-verificacion [documentoId]="doc._id" />
+
     <!-- Historial de revisiones de Gerencia -->
     @if (revisiones().length > 0) {
       <div class="tarjeta">
