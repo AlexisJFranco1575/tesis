@@ -113,7 +113,7 @@ export class AuthService {
   // Primera pantalla a la que el usuario tiene acceso (null si no tiene ninguna)
   rutaInicio(): string | null {
     if (this.tienePermiso('documentos.consultar')) {
-      return '/dashboard/bandejas/recibidos';
+      return '/dashboard/inicio';
     }
     if (this.tieneAlgunPermiso(...PERMISOS_ADMINISTRACION)) {
       return '/dashboard/usuarios';

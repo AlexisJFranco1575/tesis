@@ -1,0 +1,81 @@
+<div class="pagina">
+  <h2>Reportes</h2>
+  <p class="sub">Exporte la información a un archivo CSV que se abre directamente en Excel. Solo incluye lo que usted puede ver.</p>
+
+  @if (mensaje(); as m) {
+    <div class="aviso" [class.ok]="m.tipo === 'ok'" [class.error]="m.tipo === 'error'">{{ m.texto }}</div>
+  }
+
+  <div class="tarjeta">
+    <h3>📄 Reporte de documentos</h3>
+    <p class="descripcion">Código, número, tipo, asunto, remitente, destinatario, estado, fechas, versión y hash SHA-256 de cada documento.</p>
+
+    <form class="filtros" (ngSubmit)="descargarDocumentos()">
+      <div class="campo">
+        <label>Estado</label>
+        <select name="estado" [(ngModel)]="filtrosDocumentos.estado">
+          <option value="">Todos</option>
+          @for (e of estados; track e) {
+            <option [value]="e">{{ e }}</option>
+          }
+        </select>
+      </div>
+      <div class="campo">
+        <label>Tipo</label>
+        <select name="tipo" [(ngModel)]="filtrosDocumentos.tipo">
+          <option value="">Todos</option>
+          @for (t of tipos; track t) {
+            <option [value]="t">{{ t }}</option>
+          }
+        </select>
+      </div>
+      <div class="campo">
+        <label>Área</label>
+        <select name="area" [(ngModel)]="filtrosDocumentos.area">
+          <option value="">Todas</option>
+          @for (a of areas(); track a._id) {
+            <option [value]="a.nombre">{{ a.nombre }}</option>
+          }
+        </select>
+      </div>
+      <div class="campo">
+        <label>Fecha desde</label>
+        <input type="date" name="desde" [(ngModel)]="filtrosDocumentos.desde">
+      </div>
+      <div class="campo">
+        <label>Fecha hasta</label>
+        <input type="date" name="hasta" [(ngModel)]="filtrosDocumentos.hasta">
+      </div>
+      <div class="accion">
+        <button class="btn-primario" type="submit" [disabled]="descargando() !== null">
+          {{ descargando() === 'documentos' ? 'Generando...' : '⬇ Descargar CSV' }}
+        </button>
+      </div>
+    </form>
+  </div>
+
+  @if (puedeBitacora) {
+    <div class="tarjeta">
+      <h3>🛡️ Reporte de la bitácora</h3>
+      <p class="descripcion">Todas las acciones registradas, con su hash encadenado, para auditorías externas. Se incluyen hasta las 5.000 más recientes del período.</p>
+
+      <form class="filtros" (ngSubmit)="descargarBitacora()">
+        <div class="campo">
+          <label>Fecha desde</label>
+          <input type="date" name="desdeB" [(ngModel)]="filtrosBitacora.desde">
+        </div>
+        <div class="campo">
+          <label>Fecha hasta</label>
+          <input type="date" name="hastaB" [(ngModel)]="filtrosBitacora.hasta">
+        </div>
+        <div class="accion">
+          <button class="btn-primario" type="submit" [disabled]="descargando() !== null">
+            {{ descargando() === 'bitacora' ? 'Generando...' : '⬇ Descargar CSV' }}
+          </button>
+        </div>
+      </form>
+    </div>
+  }
+
+  <p class="nota">Cada exportación queda registrada en la bitácora con quién la hizo y con qué criterios.</p>
+</div>

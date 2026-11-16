@@ -1,0 +1,114 @@
+<div class="pagina">
+  <div class="saludo">
+    <div>
+      <h2>{{ saludo() }}, {{ usuario?.nombreCompleto?.split(' ')?.[0] }}</h2>
+      <p class="sub">
+        {{ usuario?.rol }} · {{ usuario?.departamento }}
+        @if (datos(); as d) {
+          · {{ d.alcance === 'institucion' ? 'Indicadores de toda la institución' : 'Indicadores de sus documentos' }}
+        }
+      </p>
+    </div>
+    <div class="atajos">
+      @if (puedeRegistrar) {
+        <a class="btn-primario enlace-boton" routerLink="/dashboard/documentos/nuevo">+ Nuevo documento</a>
+      }
+      <a class="btn-secundario enlace-boton" routerLink="/dashboard/bandejas/recibidos">📥 Ir a recibidos</a>
+    </div>
+  </div>
+
+  @if (cargando()) {
+    <div class="estado">Cargando indicadores...</div>
+  } @else if (error()) {
+    <div class="estado error">{{ error() }}</div>
+  } @else if (datos(); as d) {
+
+    <!-- Tarjetas -->
+    <div class="tarjetas">
+      <div class="kpi">
+        <span class="kpi-valor">{{ d.totales.documentos }}</span>
+        <span class="kpi-rotulo">Documentos</span>
+      </div>
+      <a class="kpi enlace" routerLink="/dashboard/bandejas/recibidos" [class.alerta]="d.tramite.recibidosSinLeer > 0">
+        <span class="kpi-valor">{{ d.tramite.recibidosSinLeer }}</span>
+        <span class="kpi-rotulo">Recibidos sin leer</span>
+      </a>
+      <a class="kpi enlace" routerLink="/dashboard/bandejas/recibidos" [class.peligro]="d.tramite.vencidos > 0">
+        <span class="kpi-valor">{{ d.tramite.vencidos }}</span>
+        <span class="kpi-rotulo">Plazos vencidos</span>
+      </a>
+      <div class="kpi">
+        <span class="kpi-valor">{{ d.totales.enRevision }}</span>
+        <span class="kpi-rotulo">En revisión</span>
+      </div>
+      <div class="kpi">
+        <span class="kpi-valor">{{ tiempoMedio(d.tramite.tiempoMedioLecturaHoras) }}</span>
+        <span class="kpi-rotulo">Tiempo medio para abrir un documento</span>
+      </div>
+      @if (d.totales.bloqueados > 0) {
+        <div class="kpi peligro">
+          <span class="kpi-valor">{{ d.totales.bloqueados }}</span>
+          <span class="kpi-rotulo">🔒 Bloqueados por alteración</span>
+        </div>
+      }
+    </div>
+
+    @if (d.totales.documentos === 0) {
+      <div class="tarjeta vacio">Aún no hay documentos para mostrar. Cuando elabore o reciba el primero, aquí verá sus indicadores.</div>
+    } @else {
+      <div class="rejilla">
+
+        <div class="tarjeta">
+          <h3>Documentos por estado</h3>
+          @for (e of d.porEstado; track e.clave) {
+            <div class="barra-fila">
+              <span class="barra-rotulo">{{ e.clave }}</span>
+              <div class="barra-pista">
+                <div class="barra" [class]="'barra ' + claseEstado(e.clave)" [style.width.%]="porcentaje(e.total, maxEstado())"></div>
+              </div>
+              <span class="barra-valor">{{ e.total }}</span>
+            </div>
+          }
+        </div>
+
+        <div class="tarjeta">
+          <h3>Documentos por tipo</h3>
+          @for (t of d.porTipo; track t.clave) {
+            <div class="barra-fila">
+              <span class="barra-rotulo">{{ t.clave }}</span>
+              <div class="barra-pista"><div class="barra azul" [style.width.%]="porcentaje(t.total, maxTipo())"></div></div>
+              <span class="barra-valor">{{ t.total }}</span>
+            </div>
+          }
+        </div>
+
+        <div class="tarjeta">
+          <h3>Registrados en los últimos 6 meses</h3>
+          <div class="columnas">
+            @for (m of d.porMes; track m.mes) {
+              <div class="columna">
+                <span class="columna-valor">{{ m.total }}</span>
+                <div class="columna-pista">
+                  <div class="columna-barra" [style.height.%]="porcentaje(m.total, maxMes())"></div>
+                </div>
+                <span class="columna-rotulo">{{ etiquetaMes(m.mes) }}</span>
+              </div>
+            }
+          </div>
+        </div>
+
+        <div class="tarjeta">
+          <h3>Áreas que más documentos emiten</h3>
+          @for (a of d.porArea; track a.clave) {
+            <div class="barra-fila">
+              <span class="barra-rotulo">{{ a.clave }}</span>
+              <div class="barra-pista"><div class="barra cian" [style.width.%]="porcentaje(a.total, maxArea())"></div></div>
+              <span class="barra-valor">{{ a.total }}</span>
+            </div>
+          }
+        </div>
+
+      </div>
+    }
+  }
+</div> 

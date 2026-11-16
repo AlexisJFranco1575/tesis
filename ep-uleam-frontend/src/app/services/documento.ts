@@ -217,7 +217,8 @@ export type AccionBitacora =
   | 'ROL_ELIMINADO'
   | 'AREA_CREADA'
   | 'AREA_MODIFICADA'
-  | 'AREA_ELIMINADA';
+  | 'AREA_ELIMINADA'
+  | 'REPORTE_EXPORTADO';
 
 export interface EntradaBitacora {
   _id: string;
@@ -290,6 +291,7 @@ const ETIQUETAS_ACCION: Record<string, string> = {
   ROL_ELIMINADO: 'Rol eliminado',
   AREA_CREADA: 'Área creada',
   AREA_MODIFICADA: 'Área modificada',
+  REPORTE_EXPORTADO: 'Reporte exportado',
   AREA_ELIMINADA: 'Área eliminada',
 };
 

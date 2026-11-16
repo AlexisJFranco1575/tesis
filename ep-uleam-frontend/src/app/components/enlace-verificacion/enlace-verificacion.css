@@ -1,0 +1,4 @@
+.texto { margin: 0 0 12px; font-size: 13px; color: var(--ep-texto-suave); line-height: 1.5; }
+.error { margin: 0; font-size: 13px; color: #c53030; }
+.fila { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.fila input { flex: 1; min-width: 240px; padding: 10px 12px; border: 1px solid var(--ep-borde); border-radius: 6px; font-family: 'Courier New', monospace; font-size: 12px; background: #fafcff; color: var(--ep-texto); }

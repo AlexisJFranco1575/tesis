@@ -1,0 +1,99 @@
+<div class="fondo">
+  <div class="caja">
+
+    <header class="cabecera">
+      <img src="logo-ep-uleam.png" alt="EP-ULEAM, Empresa Pública de Producción y Desarrollo Estratégico">
+      <h1>Verificación de autenticidad</h1>
+      <p>Sistema de Gestión Documental con trazabilidad SHA-256</p>
+    </header>
+
+    @if (estado() === 'cargando') {
+      <div class="bloque centro">Consultando el documento...</div>
+    } @else if (estado() === 'invalido') {
+      <div class="bloque rojo">
+        <h2>✗ Documento no encontrado</h2>
+        <p>No existe un documento con el código <strong>{{ codigo }}</strong>, o el enlace de verificación no es válido.
+          Compruebe que escaneó el código QR completo o que copió el enlace entero.</p>
+      </div>
+    } @else if (estado() === 'error') {
+      <div class="bloque rojo">
+        <h2>No se pudo realizar la consulta</h2>
+        <p>Hubo un problema de conexión con el servidor. Intente nuevamente en unos minutos.</p>
+      </div>
+    } @else if (info(); as i) {
+
+      <!-- 1) Datos del documento -->
+      <div class="bloque">
+        <h2>1. Documento registrado</h2>
+
+        @if (i.confidencial || !i.documento) {
+          <p class="aviso-conf">🔒 Este documento es <strong>confidencial</strong>: por seguridad no se muestran sus datos. Puede comprobar igualmente si el archivo que usted tiene es auténtico.</p>
+        } @else {
+          <dl class="datos">
+            <div><dt>Código de trámite</dt><dd>{{ i.documento.codigoTramite }}</dd></div>
+            <div><dt>Tipo</dt><dd>{{ i.documento.tipoDocumento }}</dd></div>
+            @if (i.documento.numeroOficio) {
+              <div><dt>Número</dt><dd>{{ i.documento.numeroOficio }}</dd></div>
+            }
+            <div><dt>Fecha del documento</dt><dd>{{ i.documento.fecha | date: 'dd MMM yyyy' : 'UTC' }}</dd></div>
+            <div><dt>Emitido por</dt><dd>{{ i.documento.emisor }}</dd></div>
+            <div><dt>Estado</dt><dd>{{ i.documento.estado }}</dd></div>
+            <div><dt>Versión vigente</dt><dd>v{{ i.documento.versionActual }}</dd></div>
+          </dl>
+        }
+      </div>
+
+      <!-- 2) Comprobar el archivo -->
+      <div class="bloque">
+        <h2>2. Compruebe su archivo</h2>
+        <p>Seleccione el archivo que recibió. El sistema comprueba si es <strong>exactamente</strong> el que fue registrado: cualquier cambio, aunque sea de una coma, lo detecta.</p>
+
+        @if (!soportaHash) {
+          <p class="error-texto">Su navegador necesita una conexión segura (HTTPS) para calcular el hash del archivo. Abra este enlace desde una dirección que empiece con https://.</p>
+        } @else {
+          <label class="selector">
+            <input type="file" (change)="alElegirArchivo($event)">
+            <span>📎 {{ nombreArchivo() || 'Elegir archivo...' }}</span>
+          </label>
+          <p class="privacidad">🔐 El archivo <strong>no se sube</strong>: su huella SHA-256 se calcula en este navegador y solo se envía ese valor.</p>
+        }
+
+        @if (calculando()) {
+          <p class="centro">Comprobando...</p>
+        }
+        @if (errorArchivo()) {
+          <p class="error-texto">{{ errorArchivo() }}</p>
+        }
+
+        @if (comprobacion(); as c) {
+          @if (c.coincide) {
+            <div class="resultado ok">
+              <h3>✓ El archivo es auténtico</h3>
+              @if (c.tipo === 'anexo') {
+                <p>Coincide con un anexo registrado{{ c.anexo ? ': ' + c.anexo : '' }}. No fue modificado.</p>
+              } @else if (c.version !== null) {
+                <p>Coincide con la <strong>versión {{ c.version }}</strong> del documento.
+                  @if (c.esVersionActual) {
+                    Es la versión vigente.
+                  } @else {
+                    <strong>Atención:</strong> existe una versión más reciente.
+                  }
+                </p>
+              } @else {
+                <p>Coincide con el archivo registrado en el sistema. No fue modificado.</p>
+              }
+            </div>
+          } @else {
+            <div class="resultado mal">
+              <h3>✗ El archivo NO coincide</h3>
+              <p>Este archivo no es ninguna de las versiones registradas de este documento. Fue <strong>modificado</strong> o corresponde a otro documento. No lo dé por válido.</p>
+            </div>
+          }
+          <p class="hash">SHA-256 de su archivo: <code>{{ hashCalculado() }}</code></p>
+        }
+      </div>
+    }
+
+    <footer class="pie">EP-ULEAM · La integridad de cada documento se garantiza con su huella digital SHA-256 y una bitácora inalterable.</footer>
+  </div>
+</div>

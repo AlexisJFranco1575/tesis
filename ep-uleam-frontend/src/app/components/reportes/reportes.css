@@ -1,0 +1,10 @@
+.pagina { max-width: 960px; margin: 0 auto; animation: fadeIn 0.4s ease-in; }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+
+h2 { margin: 0 0 4px; color: var(--ep-azul-profundo); font-size: 24px; }
+.pagina > .sub { margin: 0 0 20px; font-size: 13px; }
+
+.descripcion { margin: -6px 0 16px; font-size: 13px; color: var(--ep-texto-suave); line-height: 1.5; }
+.filtros { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 14px; align-items: end; }
+.accion { display: flex; align-items: flex-end; }
+.nota { margin: 4px 0 0; font-size: 12px; color: var(--ep-texto-suave); }

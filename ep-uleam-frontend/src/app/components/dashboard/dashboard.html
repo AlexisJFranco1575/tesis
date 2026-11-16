@@ -6,6 +6,10 @@
     </div>
     <nav class="nav-menu">
       @if (verDocumentos()) {
+        <a routerLink="/dashboard/inicio" class="nav-item" routerLinkActive="active">
+          <span class="icon">🏠</span> Inicio
+        </a>
+
         <div class="nav-grupo">Trámite</div>
         <a routerLink="/dashboard/bandejas/recibidos" class="nav-item" routerLinkActive="active">
           <span class="icon">📥</span> Recibidos
@@ -41,6 +45,9 @@
           @if (pendientesDocumentos() > 0) {
             <span class="badge-menu">{{ pendientesDocumentos() }}</span>
           }
+        </a>
+        <a routerLink="/dashboard/reportes" class="nav-item" routerLinkActive="active">
+          <span class="icon">📊</span> Reportes
         </a>
       }
 

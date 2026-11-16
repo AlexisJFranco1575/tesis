@@ -30,6 +30,7 @@ import {
 } from '../../services/documento';
 import { PanelContenidoComponent } from '../panel-contenido/panel-contenido';
 import { PanelTramiteComponent } from '../panel-tramite/panel-tramite';
+import { EnlaceVerificacionComponent } from '../enlace-verificacion/enlace-verificacion';
 
 const DESCRIPCION_TRANSICION: Record<string, string> = {
   'En Revisión':
@@ -46,7 +47,7 @@ const EXTENSIONES_VISIBLES = ['.pdf', '.png', '.jpg', '.jpeg'];
 @Component({
   selector: 'app-detalle-documento',
   standalone: true,
-  imports: [FormsModule, DatePipe, RouterLink, PanelTramiteComponent, PanelContenidoComponent],
+  imports: [FormsModule, DatePipe, RouterLink, PanelTramiteComponent, PanelContenidoComponent, EnlaceVerificacionComponent],
   styleUrls: ['./detalle-documento.css', './detalle-flujo.css', './detalle-anexos.css', './detalle-tramite.css'],
   templateUrl: './detalle-documento.html',
 })

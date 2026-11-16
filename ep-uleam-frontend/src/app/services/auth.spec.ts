@@ -76,9 +76,9 @@ describe('AuthService', () => {
     expect(servicio.tienePermiso('documentos.consultar')).toBe(false);
   });
 
-  it('elige la pantalla de inicio según los permisos (Recibidos si puede consultar documentos)', () => {
+  it('elige la pantalla de inicio según los permisos (Inicio si puede consultar documentos)', () => {
     guardarUsuario(['documentos.consultar']);
-    expect(servicio.rutaInicio()).toBe('/dashboard/bandejas/recibidos');
+    expect(servicio.rutaInicio()).toBe('/dashboard/inicio');
 
     guardarUsuario(['usuarios.gestionar']);
     expect(servicio.rutaInicio()).toBe('/dashboard/usuarios');

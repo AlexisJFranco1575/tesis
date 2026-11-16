@@ -1,0 +1,19 @@
+<div class="tarjeta">
+  <h3>🔗 Verificación pública</h3>
+  <p class="texto">
+    Cualquier persona puede comprobar que un archivo de este documento es auténtico, sin iniciar sesión.
+    Los documentos redactados en el sistema llevan este enlace en su <strong>código QR</strong>; también puede compartirlo.
+  </p>
+
+  @if (error()) {
+    <p class="error">{{ error() }}</p>
+  } @else if (url()) {
+    <div class="fila">
+      <input type="text" readonly [value]="url()" (focus)="$any($event.target).select()">
+      <button class="btn-secundario" type="button" (click)="copiar()">{{ copiado() ? '✓ Copiado' : 'Copiar' }}</button>
+      <a class="btn-primario enlace-boton" [href]="url()" target="_blank" rel="noopener">Abrir</a>
+    </div>
+  } @else {
+    <p class="texto">Obteniendo enlace...</p>
+  }
+</div>
